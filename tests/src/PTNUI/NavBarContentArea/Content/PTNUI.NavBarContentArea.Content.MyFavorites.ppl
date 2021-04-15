@@ -1,0 +1,87 @@
+import PTNUI:NavBarContentArea:NBContent;
+import PTNUI:NavBarContentArea:NBContentCollection;
+
+class MyFavorites extends PTNUI:NavBarContentArea:NBContentCollection
+   method MyFavorites();
+private
+   Constant &FAV_KEY_PREFIX = "favkeys=start&"; /* indicates the presence of unique keys that identify this favorite */
+   
+end-class;
+
+Declare Function getPortalHostNodeURI PeopleCode FUNCLIB_PTUN.FUNCLIB FieldFormula;
+Declare Function UnEscapeHTML PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+
+method MyFavorites;
+   %Super = create PTNUI:NavBarContentArea:NBContentCollection();
+   
+   Local ApiObject &Portal = %Session.GetPortalRegistry();
+   If Not &Portal.Open(%Portal) Then
+      Error MsgGet(95, 5021, "Error opening portal: %1.", %Portal);
+   End-If;
+   
+   Local ApiObject &Favorites = &Portal.Favorites;
+   Local ApiObject &Fav = &Favorites.first();
+   REM: Add Edit Favorites if not in SFF;
+   If %Request.BrowserDeviceFormFactor <> %FormFactor_Small Then
+      Local ApiObject &editFav = &Portal.FindCrefByName("PT_PORTAL_EDIT_FAV_GBL");
+      If (All(&editFav) And
+            (&editFav.Authorized)) Then;
+         Local string &editFavURL = "javascript:PTNavBar.OpenInWindow('" | &editFav.AbsolutePortalURL | "');";
+         Local PTNUI:NavBarContentArea:NBContent &eFav = create PTNUI:NavBarContentArea:NBContent("PT_PORTAL_EDIT_FAV_GBL", &editFav.Label, &editFavURL);
+         &eFav.style = "psnbefav";
+         %This.InsertItem(&eFav);
+      End-If;
+   End-If;
+   While &Fav <> Null
+      If Not &Fav.IsFolder Then
+         Local ApiObject &cref = &Portal.FindCrefByName(&Fav.CrefName);
+         Local string &url;
+         If &cref <> Null And
+               &Fav.CrefName <> "PT_PTPP_SCFNAV_BASEPAGE_SCR" Then
+            Local string &favURL;
+            If &cref.TemplateType = "HTML" Then
+               If &Fav.CrefName = "PTUN_DUMMYFAV" Then
+                  &favURL = &Fav.URL;
+               Else
+                  &favURL = &cref.AbsolutePortalURL;
+               End-If;
+            Else
+               &favURL = &cref.AbsoluteContentURL;
+               If &cref.UsageType = "HPGT" Then
+                  If Not &cref.IsLink Then
+                     REM Generate the special url for homepage tab;
+                     &favURL = GenerateHomepagePortalURL(%Portal, %Node, &cref.Name);
+                  Else
+                     REM Dashboard;
+                     &favURL = &cref.AbsolutePortalURL;
+                  End-If;
+               End-If; /* End check for Homepage */
+            End-If;
+            REM Check if this is an 8.5 or greater favorite;
+            REM Get the unique key values if it is;
+            Local number &pos = Find(&FAV_KEY_PREFIX, &Fav.URL);
+            If &pos <> 0 Then
+               Local string &keys = Substring(&Fav.URL, &pos + Len(&FAV_KEY_PREFIX), 1 + Len(&Fav.URL));
+               Local number &qryStringPos = Find("?", &favURL);
+               If &qryStringPos > 0 Then
+                  &favURL = &favURL | "&" | &keys;
+               Else
+                  &favURL = &favURL | "?" | &keys;
+               End-If;
+            End-If;
+            &url = &favURL;
+         Else
+            &url = getPortalHostNodeURI() | "/" | %Portal | "/" | %Node | "/" | &Fav.URL;
+         End-If;
+         &url = "javascript:PTNavBar.OpenInWindow('" | &url | "');";
+         %This.InsertItem(create PTNUI:NavBarContentArea:NBContent(&Fav.CrefName, UnEscapeHTML(&Fav.Label), &url));
+         /* must unescape label in-case its escaped label from classic fav label. PIA will auto-escape this on rendering to the browser. */
+      Else
+         
+      End-If;
+      &Fav = &Favorites.next();
+   End-While;
+   
+   &Portal.close();
+end-method;
+

@@ -1,0 +1,40 @@
+import PTNUI:LP:LandingPageTabRS;
+import PTNUI:Model:LandingPageTab;
+import PTNUI:Model:Tile;
+
+class DashboardTabRS extends PTNUI:LP:LandingPageTabRS
+   method DashboardTabRS(&parentRow As Row, &tabName As string, &rsName As string, &recName As string);
+   
+protected
+   method setTile(&rec As Record, &tile As PTNUI:Model:Tile, &lpt As PTNUI:Model:LandingPageTab);
+   
+end-class;
+
+method DashboardTabRS
+   /+ &parentRow as Row, +/
+   /+ &tabName as String, +/
+   /+ &rsName as String, +/
+   /+ &recName as String +/
+   %Super = create PTNUI:LP:LandingPageTabRS(&parentRow, &tabName, &rsName, &recName);
+end-method;
+
+method setTile
+   /+ &rec as Record, +/
+   /+ &tile as PTNUI:Model:Tile, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   %Super.setTile(&rec, &tile, &lpt);
+   If &tile.AltHeight <> 0 And
+         &tile.AltWidth <> 0 Then
+      &rec.GROUPLET_ALTHEIGHT.Value = &tile.AltHeight;
+      &rec.GROUPLET_ALTWIDTH.Value = &tile.AltWidth;
+      &rec.PTNUI_ACTION_LINK.LabelImage = Image.PTNUI_TOGGLE_TILE_EXPAND;
+      &rec.PTNUI_ACTION_LINK.HoverText = "Resize";
+      
+      If %This.isPersonalizationMode_inst Then
+         &rec.PTNUI_ACTION_LINK.FreeFormStyleName = "psc_hidden";
+      Else
+         &rec.PTNUI_ACTION_LINK.FreeFormStyleName = "";
+      End-If;
+   End-If;
+end-method;
+

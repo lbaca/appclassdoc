@@ -1,0 +1,252 @@
+import PTPP_PORTAL:UTILITY:Collection;
+import PTBR_BRANDING:BrandingManager;
+import PTBR_BRANDING:Themes:ThemeAssignment;
+import PTBR_BRANDING:UTILITY:TabDefinition;
+
+import PTNUI:NavBarContentArea:NBContent;
+import PTNUI:NavBarContentArea:NBContentCollection;
+import PTNUI:Model:LandingPageTab;
+
+
+
+class Homepages extends PTNUI:NavBarContentArea:NBContentCollection
+   property string PortalName readonly;
+   property boolean IncludeClassicHomepages readonly;
+   property boolean IncludeFluidHomepages readonly;
+   property boolean IncludeCustomTabs readonly;
+   
+   
+   method Homepages();
+   method GetBackURL() Returns string;
+   method GetRootURL() Returns string;
+   method RowClicked(&pContent As PTNUI:NavBarContentArea:NBContent);
+   
+   
+private
+   
+   Constant &cstQUERYPARAMETER_INCLUDE_CLASSIC = "classic";
+   Constant &cstQUERYPARAMETER_INCLUDE_FLUID = "fluid";
+   Constant &cstQUERYPARAMETER_INCLUDE_CUSTOM = "custom";
+   
+   Constant &cstYES = "Y";
+   
+   
+end-class;
+
+
+
+Declare Function PortalOpen PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function getBrandingManager PeopleCode FUNCLIB_PTBR.FUNCLIB FieldFormula;
+Declare Function GetLandingPageTabListForPortal PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+
+
+method Homepages;
+   
+   Local boolean &isSFF = (%Request.BrowserDeviceFormFactor = %FormFactor_Small);
+   
+   Local integer &i;
+   Local string &url, &label, &value;
+   Local string &baseUrl, &market;
+   Local string &defaultTab;
+   
+   Local PTNUI:NavBarContentArea:NBContent &nbc;
+   
+   Local PTBR_BRANDING:BrandingManager &mgrObj;
+   Local PTBR_BRANDING:Themes:ThemeAssignment &taObj;
+   Local PTPP_PORTAL:UTILITY:Collection &tabs;
+   Local PTBR_BRANDING:UTILITY:TabDefinition &thisTab;
+   
+   Local PTNUI:Model:LandingPageTab &lpt;
+   Local array of PTNUI:Model:LandingPageTab &lptList;
+   
+   
+   %Super = create PTNUI:NavBarContentArea:NBContentCollection();
+   
+   
+   /* Get parameters */
+   &PortalName = %Portal;
+   
+   rem &IncludeClassicHomepages = (%Request.StartPageType <> "F");
+   &IncludeClassicHomepages = True;
+   &value = Upper(%Request.GetParameter(&cstQUERYPARAMETER_INCLUDE_CLASSIC));
+   If (All(&value)) Then
+      &IncludeClassicHomepages = (&value = &cstYES);
+   End-If;
+   
+   rem &IncludeFluidHomepages = (%Request.StartPageType = "F");
+   &IncludeFluidHomepages = (UIDisplayMode() <> 1);
+   &value = Upper(%Request.GetParameter(&cstQUERYPARAMETER_INCLUDE_FLUID));
+   If (All(&value)) Then
+      &IncludeFluidHomepages = (&value = &cstYES);
+   End-If;
+   
+   &IncludeCustomTabs = True;
+   &value = Upper(%Request.GetParameter(&cstQUERYPARAMETER_INCLUDE_CUSTOM));
+   If (All(&value)) Then
+      &IncludeCustomTabs = (&value = &cstYES);
+   End-If;
+   
+   
+   /* Get the theme assignment object */
+   &mgrObj = getBrandingManager();
+   &taObj = &mgrObj.getCurrentThemeAssignmentForPortal(%This.PortalName);
+   
+   
+   /* Add the fluid homepages */
+   If (%This.IncludeFluidHomepages) Then
+      
+      /* base URL of the Fluid Homepage Component */
+      &market = %Market;
+      If (None(&market)) Then
+         &market = "GBL";
+      End-If;
+      
+      &baseUrl = GenerateComponentContentURL(%This.PortalName, %Node, MenuName.NUI_FRAMEWORK, &market, Component.PT_LANDINGPAGE, "", "");
+      
+      If (Find("?", &baseUrl) > 0) Then
+         &baseUrl = &baseUrl | "&";
+      Else
+         &baseUrl = &baseUrl | "?";
+      End-If;
+      
+      &baseUrl = &baseUrl | "LP=";
+      
+      
+      /* Get the default fluid homepage tab from the theme assignment object */
+      &defaultTab = &taObj.DefaultLandingPageName;
+      
+      
+      /* Get list of fluid homepages */
+      &lptList = GetLandingPageTabListForPortal(%This.PortalName);
+      
+      For &i = 1 To &lptList.Len
+         &lpt = &lptList [&i];
+         If (&lpt.HasUserData Or
+               ((&lpt.LayoutBehavior = "3DEF") And
+                  (&lpt.ActiveFlag <> "N")) Or
+               (&lpt.LayoutBehavior = "2REQ") Or
+               (&lpt.LayoutBehavior = "1FIX")) Then
+            
+            /* On SFF, ignore tabs without SFF tiles */
+            If (&isSFF And
+                  ( Not &lpt.hasSFFTiles())) Then
+               Continue;
+            End-If;
+            
+            /* Create the content */
+            &url = "javascript:PTNavBar.OpenInWindow('" | EncodeURL(&baseUrl | &lpt.ID) | "','" | EscapeJavascriptString(&lpt.ID) | "');";
+            
+            &nbc = create PTNUI:NavBarContentArea:NBContent(&lpt.ID, &lpt.Label, &url);
+            &nbc.ariaAttributes = "role='menuitem'";
+            
+            If (&lpt.ID = &defaultTab) Then
+               rem %This.InsertItemAtStart(&nbc);
+               %This.InsertItem(&nbc);
+            Else
+               %This.InsertItem(&nbc);
+            End-If;
+            
+         End-If;
+      End-For;
+      
+   End-If;
+   
+   
+   /* Get list of classic homepages and custom tabs */
+   &tabs = &taObj.getHomepageTabs();
+   
+   For &i = 1 To &tabs.Count
+      
+      &thisTab = &tabs.get(&i);
+      
+      If ((&thisTab = Null) Or
+            ( Not %This.IncludeCustomTabs And
+               &thisTab.IsCustomTab) Or
+            ( Not %This.IncludeClassicHomepages And
+               Not &thisTab.IsCustomTab)) Then
+         Continue;
+      End-If;
+      
+      /* Create the content */
+      If (&thisTab.Target = &thisTab.TARGET_NEWWINDOW) Then
+         &url = "javascript:LaunchURL(null, '" | EncodeURL(&thisTab.URL) | "', 1);";
+      Else
+         &url = "javascript:PTNavBar.OpenInWindow('" | EncodeURL(Substitute(&thisTab.URL, "%25", "%")) | "','" | EscapeJavascriptString(&thisTab.Name) | "');";
+      End-If;
+      
+      &nbc = create PTNUI:NavBarContentArea:NBContent(&thisTab.Name, &thisTab.Label, &url);
+      &nbc.ariaAttributes = "role='menuitem'";
+      
+      If ((&i = 1) And
+            &thisTab.IsCustomTab) Then
+         %This.InsertItemAtStart(&nbc);
+      Else
+         %This.InsertItem(&nbc);
+      End-If;
+      
+   End-For;
+   
+end-method;
+
+
+
+method GetBackURL
+   /+ Returns String +/
+   
+   Return %This.GetRootURL();
+   
+end-method;
+
+
+
+method GetRootURL
+   /+ Returns String +/
+   
+   Local string &url, &market;
+   
+   &market = %Market;
+   If (None(&market)) Then
+      &market = "GBL";
+   End-If;
+   
+   &url = GenerateComponentContentURL(%This.PortalName, %Node, MenuName.NUI_FRAMEWORK, &market, Component.PTNUI_HP_COMP, "", "");
+   
+   If (Find("?", &url) > 0) Then
+      &url = &url | "&";
+   Else
+      &url = &url | "?";
+   End-If;
+   
+   If (%This.IncludeClassicHomepages) Then
+      &url = &url | &cstQUERYPARAMETER_INCLUDE_CLASSIC | "=" | &cstYES;
+   End-If;
+   
+   If (%This.IncludeFluidHomepages) Then
+      &url = &url | &cstQUERYPARAMETER_INCLUDE_FLUID | "=" | &cstYES;
+   End-If;
+   
+   If (%This.IncludeCustomTabs) Then
+      &url = &url | &cstQUERYPARAMETER_INCLUDE_CUSTOM | "=" | &cstYES;
+   End-If;
+   
+   &url = "javascript:PTNavBar.OpenInContentArea('" | &url | "&ICDoModal=1&ICGrouplet=1','" | %This.PortalName | "-Homepages');";
+   
+   Return &url;
+   
+end-method;
+
+
+
+method RowClicked
+   /+ &pContent as PTNUI:NavBarContentArea:NBContent +/
+   /+ Extends/implements PTNUI:NavBarContentArea:NBContentCollection.RowClicked +/
+   
+   Local string &val = &pContent.getUrl();
+   
+   If (All(&val)) Then
+      ViewURL(&val);
+   End-If;
+   
+end-method;
+

@@ -1,0 +1,492 @@
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+import PTNUI:Model:TileCategory;
+import PTNUI:Model:Tile;
+
+class NUIRegistry
+   method LoadUserTab(&portal As ApiObject, &lpt As PTNUI:Model:LandingPageTab, &userTab As ApiObject);
+   method LoadSystemTab(&portal As ApiObject, &lpt As PTNUI:Model:LandingPageTab, &sysTab As ApiObject);
+   method SaveUserTab(&portal As ApiObject, &lpt As PTNUI:Model:LandingPageTab);
+   
+   method InitializeModels(&lpSys As PTNUI:Model:LandingPage, &lpUser As PTNUI:Model:LandingPage);
+   
+   method debug(&portal As ApiObject, &ltd As ApiObject);
+   
+   method getPortalHostNode(&portalReg As ApiObject) Returns string;
+   
+   method getNodePortalUrlForNode(&pNodeName As string) Returns string;
+   method getNodeContentUrlForNode(&pNodeName As string) Returns string;
+   
+   method getTileCategories(&pPortalReg As ApiObject) Returns array of PTNUI:Model:TileCategory;
+private
+   
+   Constant &cstLOCAL_NODE = "LOCAL_NODE";
+   
+end-class;
+
+Declare Function CreateSystemLandingTab PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function CreateUserLandingTab PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function AddTileToUserTabRegistry PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function AddTileToSysTabRegistry PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function IsValid PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function CreateUniNavTileCategory PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+Declare Function CreateUniNavTile PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+method getPortalHostNode
+   /+ &portalReg as ApiObject +/
+   /+ Returns String +/
+   
+   Local string &portalName, &nodeName;
+   Local ApiObject &portal;
+   
+   &nodeName = %Node;
+   &portalName = &portalReg.Name;
+   
+   SQLExec(SQL.PTBR_GET_PORTAL_HOST_NODE, &portalName, &nodeName);
+   If (None(&nodeName)) Then
+      &nodeName = %LocalNode;
+   End-If;
+   If (&nodeName = &cstLOCAL_NODE) Then
+      &nodeName = %LocalNode;
+   End-If;
+   
+   Return &nodeName;
+   
+end-method;
+
+
+method getNodePortalUrlForNode
+   /+ &pNodeName as String +/
+   /+ Returns String +/
+   
+   Local string &nodeUrl = "";
+   Local ApiObject &nodes, &node;
+   
+   If All(&pNodeName) Then
+      &nodes = %Session.getNodes();
+      If All(&nodes) Then
+         &node = &nodes.itembyname(&pNodeName);
+         If All(&nodes) Then
+            &nodeUrl = &node.PortalURI;
+            &nodeUrl = RTrim(&nodeUrl, "/ ") | "/";
+         End-If;
+      End-If;
+   End-If;
+   
+   Return &nodeUrl;
+   
+end-method;
+
+method getNodeContentUrlForNode
+   /+ &pNodeName as String +/
+   /+ Returns String +/
+   
+   Local string &nodeUrl = "";
+   Local ApiObject &nodes, &node;
+   
+   If All(&pNodeName) Then
+      &nodes = %Session.getNodes();
+      If All(&nodes) Then
+         &node = &nodes.itembyname(&pNodeName);
+         If All(&nodes) Then
+            &nodeUrl = &node.ContentURI;
+            &nodeUrl = RTrim(&nodeUrl, "/ ") | "/";
+         End-If;
+      End-If;
+   End-If;
+   
+   Return &nodeUrl;
+   
+end-method;
+
+method getTileCategories
+   /+ &pPortalReg as ApiObject +/
+   /+ Returns Array of PTNUI:Model:TileCategory +/
+   
+   Local string &hostNodeName;
+   Local ApiObject &categoryObj, &groupletObj, &categoryList, &groupletList, &folderObj, &crefObj;
+   
+   Local PTNUI:Model:TileCategory &tc;
+   Local PTNUI:Model:Tile &t;
+   Local array of PTNUI:Model:TileCategory &tcList;
+   Local array of PTNUI:Model:Tile &tileList;
+   
+   &tcList = CreateArrayRept(&tc, 0);
+   
+   &hostNodeName = %This.getPortalHostNode(&pPortalReg);
+   
+   &categoryList = &pPortalReg.GroupletCategories;
+   If All(&categoryList) Then
+      
+      &categoryObj = &categoryList.first();
+      While All(&categoryObj)
+         
+         If (&categoryObj.Authorized) Then
+            
+            &folderObj = &pPortalReg.FindFolderByName(&categoryObj.name);
+            If IsValid(&folderObj) Then
+               
+               /* Create the TileCategory Object */
+               &tc = create PTNUI:Model:TileCategory(&hostNodeName, &pPortalReg.name, &categoryObj.name);
+               &tc.SetPropertiesFromFRef(&folderObj);
+               
+               /* Add Tile Objects */
+               &groupletList = &categoryObj.Pagelets;
+               &tileList = &tc.GetTiles();
+               If All(&groupletList) Then
+                  
+                  &groupletObj = &groupletList.first();
+                  While All(&groupletObj)
+                     
+                     If (&groupletObj.Authorized) Then
+                        
+                        &crefObj = &pPortalReg.FindCRefByName(&groupletObj.Name);
+                        If IsValid(&crefObj) Then
+                           
+                           &t = create PTNUI:Model:Tile(&hostNodeName, &pPortalReg.name, &groupletObj.name, &groupletObj.label);
+                           &t.SetPropertiesFromCref(&crefObj);
+                           &t.CategoryLabel = &tc.Label;
+                           &t.SeqNum = &groupletObj.SequenceNumber;
+                           
+                           &tileList.Push(&t);
+                           
+                        End-If;
+                        
+                     End-If;
+                     
+                     &groupletObj = &groupletList.next();
+                     
+                  End-While;
+                  
+               End-If;
+               
+               /* Add to the collection */
+               &tcList.Push(&tc);
+               
+            End-If;
+            
+         End-If;
+         
+         &categoryObj = &categoryList.next();
+         
+      End-While;
+      
+   End-If;
+   
+   Return &tcList;
+   
+end-method;
+
+method LoadUserTab
+   /+ &portal as ApiObject, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab, +/
+   /+ &userTab as ApiObject +/
+   
+   Local integer &i, &rowCount;
+   Local Rowset &rs;
+   
+   &lpt.Label = &userTab.label;
+   &lpt.SeqNum = &userTab.sequenceNumber;
+   &lpt.HasUserData = True;
+   
+   Local ApiObject &selPglts = &userTab.SelectedPagelets;
+   Local ApiObject &selPglt = &selPglts.first();
+   While &selPglt <> Null
+      &lpt.AddUserTileFromReg(&portal, &selPglt);
+      &selPglt = &selPglts.next();
+   End-While;
+   
+   &rs = CreateRowset(Record.PT_PORTAL_PINTO);
+   &rowCount = &rs.Fill("where (OPRID=:1) and (PORTAL_NAME=:2) and (PORTAL_OBJNAME=:3)", %UserId, &lpt.PortalName, &lpt.TabName);
+   For &i = 1 To &rowCount
+      &lpt.AddPinnedTileFromReg(&portal, &rs(&i).PT_PORTAL_PINTO);
+   End-For;
+   
+end-method;
+
+method LoadSystemTab
+   /+ &portal as ApiObject, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab, +/
+   /+ &sysTab as ApiObject +/
+   &lpt.Label = &sysTab.Label;
+   &lpt.SeqNum = &sysTab.sequenceNumber;
+   &lpt.SysLabel = &sysTab.Label;
+   &lpt.IsLayoutLocked = &sysTab.IsLayoutLocked;
+   &lpt.IsRenameable = &sysTab.IsRenameable;
+   &lpt.LayoutBehavior = &sysTab.LayoutBehavior;
+   &lpt.IsOpDashboard = &sysTab.IsOpDashboard;
+   
+   Local ApiObject &availCats = &sysTab.AvailableCategories;
+   Local ApiObject &availCat = &availCats.first();
+   While &availCat <> Null
+      Local ApiObject &availPglts = &availCat.AvailablePagelets;
+      Local ApiObject &availPglt = &availPglts.first();
+      While &availPglt <> Null
+         &lpt.AddSystemTileFromReg(&portal, &availPglt);
+         &availPglt = &availPglts.next();
+      End-While;
+      &availCat = &availCats.next();
+   End-While;
+end-method;
+
+method SaveUserTab
+   /+ &portal as ApiObject, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   
+   Local PTNUI:Model:Tile &t, &localTile;
+   Local array of PTNUI:Model:Tile &localTileList;
+   Local PTNUI:Model:TileCategory &tc, &localTileCategory;
+   Local array of PTNUI:Model:TileCategory &localTileCategoryList;
+   
+   SQLExec("DELETE FROM %Table(PTNUI_LP_STATE) WHERE OPRID = :1 AND PORTAL_NAME = :2 AND PORTAL_OBJNAME = :3 AND PORTAL_HOSTNODENAM = :4", %UserId, &lpt.PortalName, &lpt.TabName, &lpt.NodeName);
+   SQLExec("DELETE FROM %Table(PT_PORTAL_PINTO) WHERE OPRID = :1 AND PORTAL_NAME = :2 AND PORTAL_OBJNAME = :3 ", %UserId, &lpt.PortalName, &lpt.TabName);
+   
+   Local ApiObject &sysTab = &portal.LandingTabDefinitions.ItemByName(&lpt.TabName);
+   If &sysTab = Null Then
+      rem check if it's a user defined tab;
+      If Find("USERDEFINED", &lpt.TabName) = 1 Then
+         CreateSystemLandingTab(&portal, &lpt.TabName);
+         &sysTab = &portal.LandingTabDefinitions.ItemByName(&lpt.TabName);
+      Else
+         MessageBox(0, "", 95, 10012, "System tab doesn't exist %1", &lpt.TabName);
+      End-If;
+   End-If;
+   
+   Local ApiObject &userTab = &portal.LandingPage.UserTabs.ItemByName(&lpt.TabName);
+   If &userTab = Null Then
+      CreateUserLandingTab(&portal, &portal.LandingPage.UserTabs, &portal.LandingPage, &lpt.TabName);
+      &userTab = &portal.LandingPage.UserTabs.ItemByName(&lpt.TabName);
+      If &userTab = Null Then
+         MessageBox(0, "", 95, 10013, "User tab doesn't exist %1", &lpt.TabName);
+      End-If;
+   End-If;
+   
+   rem update user landing tab properties;
+   &userTab.Label = &lpt.Label;
+   &userTab.SequenceNumber = &lpt.SeqNum;
+   
+   rem clean out selected pagelets first;
+   Local ApiObject &selTiles = &userTab.Selectedpagelets;
+   Local ApiObject &selTile = &selTiles.first();
+   Local array of string &selPglt_arr = CreateArrayRept("", 0);
+   While &selTile <> Null
+      &selPglt_arr.Push(&selTile.PageletName);
+      &selTile = &selTiles.next();
+   End-While;
+   
+   Local integer &j;
+   Local ApiObject &assignedPglts = &sysTab.AssignedPagelets;
+   For &j = 1 To &selPglt_arr.Len
+      Local string &selName = &selPglt_arr [&j];
+      Local ApiObject &assignedTile = &assignedPglts.ItemByName(&selName);
+      If &assignedTile <> Null Then
+         If &assignedTile.LayoutBehavior = "1FIX" Or
+               &assignedTile.LayoutBehavior = "2REQ" Then
+            Continue;
+         End-If;
+      End-If;
+      
+      &selTiles.deleteitem(&selName);
+   End-For;
+   
+   rem update user landing tab tiles;
+   Local array of PTNUI:Model:Tile &tiles_arr = &lpt.GetTiles();
+   Local ApiObject &userTiles = &userTab.SelectedPagelets;
+   If &userTiles = Null Then
+      MessageBox(0, "", 95, 10014, "User selected pagelets is null. %1", &lpt.TabName);
+   End-If;
+   
+   Local integer &m, &n;
+   Local Record &rec = CreateRecord(Record.PT_PORTAL_PINTO);
+   
+   Local boolean &newAssignedPagelet = False;
+   
+   For &j = 1 To &tiles_arr.Len
+      Local PTNUI:Model:Tile &tile = &tiles_arr [&j];
+      
+      If (&tile.IsPinnedTile) Then
+         /* Pinned tile */
+         
+         If ( Not &tile.MarkedForDelete) Then
+            &rec.OPRID.Value = %UserId;
+            &rec.PORTAL_NAME.Value = &lpt.PortalName;
+            &rec.PORTAL_OBJNAME.Value = &lpt.TabName;
+            &rec.PORTAL_OBJNAME_PGT.Value = &tile.TileName;
+            &tile.SetPropertiesToPinnedPglt(&rec);
+            &rec.Insert();
+         End-If;
+         
+         Continue;
+         
+      End-If;
+      
+      If (&tile.NodeName <> &lpt.NodeName) Then
+         /* Tile from another system */
+         
+         If (&tile.IsRemote) And
+               (&tile.RemoteNodeName = &lpt.NodeName) Then
+            
+            /* Remote tile, but point to the local system */
+            &tile.NodeName = &tile.RemoteNodeName;
+            &tile.TileName = &tile.RemoteCRefName;
+            
+         Else
+            /* Find or create local tile */
+            If (&tile.MarkedForDelete) Then
+               /* Ignore */
+               Continue;
+            Else
+               If None(&localTileCategoryList) Then
+                  &localTileCategoryList = %This.getTileCategories(&portal);
+               End-If;
+               
+               /* Look for a local tile/category with the same remote id */
+               &localTileCategory = Null;
+               &localTile = Null;
+               For &m = 1 To &localTileCategoryList.Len
+                  
+                  &tc = &localTileCategoryList [&m];
+                  If (&tc.IsRemote) And
+                        (&tc.RemoteNodeName = &tile.NodeName) And
+                        (&tc.RemotePortalName = &tile.PortalName) And
+                        (&tc.RemoteCRefName = &tile.CategoryName) Then
+                     &localTileCategory = &tc;
+                  End-If;
+                  
+                  &localTileList = &tc.GetTiles();
+                  For &n = 1 To &localTileList.Len
+                     &t = &localTileList [&n];
+                     If (&t.IsRemote) And
+                           (&t.RemoteNodeName = &tile.NodeName) And
+                           (&t.RemotePortalName = &tile.PortalName) And
+                           (&t.RemoteCRefName = &tile.TileName) Then
+                        &localTile = &t;
+                        Break;
+                     End-If;
+                  End-For;
+                  
+                  If All(&localTile) Then
+                     &localTileCategory = &tc;
+                     Break;
+                  End-If;
+                  
+               End-For;
+               
+               /* Create Tile Category, when not found */
+               If None(&localTileCategory) Then
+                  &localTileCategory = CreateUniNavTileCategory(&portal, &lpt.NodeName, &tile);
+                  &localTileCategoryList.Push(&localTileCategory);
+               End-If;
+               
+               /* Create Tile, when not found */
+               If None(&localTile) Then
+                  &localTile = CreateUniNavTile(&portal, &localTileCategory, &tile);
+                  &localTileCategory.GetTiles().Push(&localTile);
+               End-If;
+               
+               &localTile = &localTile.clone();
+               &localTile.SeqNum = &tile.SeqNum;
+               &localTile.RowNum = &tile.RowNum;
+               &localTile.ColNum = &tile.ColNum;
+               &localTile.MergeSystemData(&tile);
+               &tile = &localTile;
+               
+            End-If;
+            
+         End-If;
+         
+      End-If;
+      
+      Local ApiObject &grouplet = &userTiles.ItemByName(&tile.TileName);
+      
+      If &tile.MarkedForDelete Then
+         If &grouplet <> Null Then
+            rem delete grouplet;
+            If Not &userTiles.DeleteItem(&tile.TileName) Then
+               MessageBox(0, "", 95, 10015, "Error deleting user tile %1 from page %2", &tile.TileName, &lpt.TabName);
+            End-If;
+         End-If;
+      Else
+         If &grouplet = Null Then
+            If Not (AddTileToUserTabRegistry(&userTab, &tile)) Then
+               MessageBox(0, "", 95, 10016, "Error adding user tile %1 to page %2", &tile.TileName, &lpt.TabName);
+            Else
+               If AddTileToSysTabRegistry(&sysTab, &tile) Then
+                  &newAssignedPagelet = True;
+               End-If;
+            End-If;
+         Else
+            /*AddOnLoadScript("console.log('Grouplet: " | &grouplet.PageletName | "Row: " | &grouplet.Row | " Col: " | &grouplet.Row | "');");*/
+            rem update tile properties;
+            &grouplet.Row = &tile.RowNum;
+            &grouplet.Column = &tile.ColNum;
+         End-If;
+      End-If;
+   End-For;
+   
+   If &newAssignedPagelet Then
+      &sysTab.save();
+   End-If;
+   
+   &userTab.save();
+end-method;
+
+method InitializeModels
+   /+ &lpSys as PTNUI:Model:LandingPage, +/
+   /+ &lpUser as PTNUI:Model:LandingPage +/
+   
+end-method;
+
+method debug
+   /+ &portal as ApiObject, +/
+   /+ &ltd as ApiObject +/
+   If &ltd.Name = "DEFAULT_LP" Then
+      rem assigned pagelets;
+      Local ApiObject &a = &ltd.AssignedPagelets;
+      Local ApiObject &b = &a.first();
+      While &b <> Null
+         AddOnLoadScript("console.log('AssignedPagelets: " | &b.PageletName | "');");
+         &b = &a.next();
+      End-While;
+      
+      rem available pagelets;
+      &a = &ltd.AvailableCategories;
+      &b = &a.first();
+      While &b <> Null
+         AddOnLoadScript("console.log('AvailableCategories: " | &b.CategoryName | "');");
+         Local ApiObject &c = &b.AvailablePagelets;
+         Local ApiObject &d = &c.first();
+         While &d <> Null
+            AddOnLoadScript("console.log('	AvailablePagelets: " | &d.PageletName | "');");
+            &d = &c.next();
+         End-While;
+         
+         &b = &a.next();
+      End-While;
+      
+      rem dynamic categories;
+      
+      &a = &ltd.DynamicCategories;
+      &b = &a.first();
+      While &b <> Null
+         AddOnLoadScript("console.log('Dynamci Categories: " | &b.Name | "');");
+         &b = &a.next();
+      End-While;
+      
+      
+      &a = &portal.GroupletCategories;
+      &b = &a.first();
+      While &b <> Null
+         AddOnLoadScript("console.log('All Grouplet Categories: " | &b.Name | "');");
+         &c = &b.Pagelets;
+         &d = &c.first();
+         While &d <> Null
+            AddOnLoadScript("console.log('	Grouplet Pagelets: " | &d.Name | "');");
+            &d = &c.next();
+         End-While;
+         
+         &b = &a.next();
+      End-While;
+   End-If;
+end-method;
+

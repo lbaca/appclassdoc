@@ -1,0 +1,2005 @@
+import PS_PT:Integration:IRequestHandler;
+
+import PTNUI:Model:*;
+import PTNUI:Registry:*;
+
+
+
+/**
+  * UniNavLandingPageHandler Class
+  */
+class UniNavLandingPageHandler implements PS_PT:Integration:IRequestHandler
+   /* --- Protected properties --- */
+   property string ErrorMessage;
+   property integer ErrorMsgSetNumber;
+   property integer ErrorMsgNumber;
+   
+   /* --- Protected Methods --- */
+   method UniNavLandingPageHandler();
+   
+   method OnRequest(&pRequest As Message) Returns Message;
+   
+   method getLandingPages(&pPortalName As string) Returns array of PTNUI:Model:LandingPageTab;
+   method getAllLandingPages(&pPortalName As string) Returns array of PTNUI:Model:LandingPageTab;
+   method saveLandingPages(&pPortalName As string, &pTabList As array of PTNUI:Model:LandingPageTab);
+   
+   method getDashboard(&pPortalName As string, &dashboardName As string) Returns PTNUI:Model:LandingPageTab;
+   method getNavBar(&pPortalName As string) Returns PTNUI:Model:LandingPageTab;
+   
+   method getTileCategories(&pPortalName As string) Returns array of PTNUI:Model:TileCategory;
+   
+   
+protected
+   /* --- Protected properties --- */
+   property boolean GetAllLP;
+   
+   /* --- Protected Methods --- */
+   method setCurrentNodePortalUrl(&pNUIReg As PTNUI:Registry:NUIRegistry, &pPortalReg As ApiObject);
+   method repositionTilesPortalUrl(&pTileList As array of PTNUI:Model:Tile);
+   method repositionTilePortalUrl(&pTile As PTNUI:Model:Tile);
+   method checkClusterAwareTiles(&pPortalName As string, &pTileList As array of PTNUI:Model:Tile);
+   
+   method checkRemoteTilesAccess(&pPortalName As string, &pTileList As array of array of PTNUI:Model:Tile);
+   method processCheckRemoteTilesAccessRequest(&pXmlDocReq As XmlDoc, &pXmlDocRes As XmlDoc);
+   method checkLocalRemoteTilesAccess(&pPortalName As string, &pTileList As array of PTNUI:Model:Tile) Returns array of PTNUI:Model:Tile;
+   
+   method processGetLandingPagesRequest(&pXmlDocReq As XmlDoc, &pXmlDocRes As XmlDoc, &bAll As boolean);
+   method getLocalLandingPages(&pPortalName As string) Returns array of PTNUI:Model:LandingPageTab;
+   
+   method processSaveLandingPagesRequest(&pXmlDocReq As XmlDoc, &pXmlDocRes As XmlDoc);
+   method saveLocalLandingPages(&pPortalName As string, &pTabList As array of PTNUI:Model:LandingPageTab);
+   
+   method getLocalDashboard(&pPortalName As string, &dashboardName As string) Returns PTNUI:Model:LandingPageTab;
+   method processGetNavBarRequest(&pXmlDocReq As XmlDoc, &pXmlDocRes As XmlDoc);
+   method getLocalNavBar(&pPortalName As string) Returns PTNUI:Model:LandingPageTab;
+   
+   method processGetTileCategoriesRequest(&pXmlDocReq As XmlDoc, &pXmlDocRes As XmlDoc);
+   method getLocalTileCategories(&pPortalName As string) Returns array of PTNUI:Model:TileCategory;
+   
+   method processGetUnFolderRequest(&pXmlDocReq As XmlDoc, &pXmlDocRes As XmlDoc, &pRequest As Message);
+   
+private
+   /* --- Constants --- */
+   Constant &cstXML_DECLARATION = "<?xml version='1.0' encoding='UTF-8'?>";
+   
+   Constant &cstXML_ELEMENT_REQUEST = "Request";
+   Constant &cstXML_ELEMENT_RESPONSE = "Response";
+   Constant &cstXML_ELEMENT_ERROR = "Error";
+   Constant &cstXML_ELEMENT_LANDING_PAGES = "LandingPages";
+   Constant &cstXML_ELEMENT_LANDING_PAGE = "LandingPage";
+   Constant &cstXML_ELEMENT_NAVBAR = "NavBar";
+   Constant &cstXML_ELEMENT_TILE_CATEGORIES = "TileCategories";
+   Constant &cstXML_ELEMENT_TILE_CATEGORY = "TileCategory";
+   Constant &cstXML_ELEMENT_TILES = "Tiles";
+   Constant &cstXML_ELEMENT_TILE = "Tile";
+   
+   Constant &cstXML_ATTRIBUTE_MODE = "mode";
+   Constant &cstXML_ATTRIBUTE_LANGUAGE_CODE = "languageCode";
+   Constant &cstXML_ATTRIBUTE_ERROR_MSG_SET_ID = "errorMsgSetId";
+   Constant &cstXML_ATTRIBUTE_ERROR_MSG_ID = "errorMsgId";
+   Constant &cstXML_ATTRIBUTE_NODE_NAME = "nodeName";
+   Constant &cstXML_ATTRIBUTE_PORTAL_NAME = "portalName";
+   Constant &cstXML_ATTRIBUTE_TAB_NAME = "tabName";
+   Constant &cstXML_ATTRIBUTE_FLDR_LIST = "fldrList";
+   Constant &cstXML_ATTRIBUTE_CREF_LIST = "crefList";
+   
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_CHECK_REMOTE_TILES_ACCESS = "checkRemoteTilesAccess";
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_GET_LANDING_PAGES = "getLandingPages";
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_GET_ALLLANDING_PAGES = "getAllLandingPages";
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_SAVE_LANDING_PAGES = "saveLandingPages";
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_GET_NAVBAR = "getNavBar";
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_GET_TILE_CATEGORIES = "getTileCategories";
+   Constant &cstXML_ATTRIBUTEVALUE_MODE_GET_UNFOLDERS = "getUnFolders";
+   
+   Constant &cstLOCAL_NODE = "LOCAL_NODE";
+   
+   Constant &cstDEFAULT_LANDING_PAGE = "DEFAULT_LP";
+   
+   Constant &cstIB_TIMEOUT = 15;
+   
+   
+   /* --- Private properties --- */
+   instance array of string &remoteNodes_inst;
+   instance string &currentNodePortalURI_inst;
+   
+   instance string &localClusterAwarTileListPortalName_inst;
+   instance array of PTNUI:Model:Tile &localClusterAwarTileList_inst;
+   instance array of string &localClusterAwarTileNameList_inst;
+   
+   
+   /* --- Private Methods --- */
+   
+   
+end-class;
+
+
+
+Declare Function IsRemotePIANode PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+Declare Function IsValid PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+
+Declare Function getUnFolders PeopleCode FUNCLIB_PTUN.FUNCLIB FieldFormula;
+
+rem Declare Function setCNProp PeopleCode FUNCLIB_PTUN.FUNCLIB FieldFormula;
+
+/**
+  * Constructor
+  *
+  */
+method UniNavLandingPageHandler
+   
+   Local string &nodeName;
+   Local SQL &sql;
+   
+   %This.ErrorMsgSetNumber = 0;
+   %This.ErrorMsgNumber = 0;
+   %This.ErrorMessage = "";
+   
+   &currentNodePortalURI_inst = "";
+   
+   /* Get the remote IB nodes */
+   &remoteNodes_inst = CreateArrayRept("", 0);
+   &sql = CreateSQL(SQL.PTBR_IB_NETWORK_NODES);
+   While &sql.Fetch(&nodeName)
+      &remoteNodes_inst.Push(&nodeName);
+   End-While;
+   
+   &remoteNodes_inst.Sort("A");
+   
+end-method;
+
+
+
+/**
+  * OnRequest handler
+  *
+  * @param pRequest     Request message.
+  *
+  * @return message
+  *
+  */
+method OnRequest
+   /+ &pRequest as Message +/
+   /+ Returns Message +/
+   /+ Extends/implements PS_PT:Integration:IRequestHandler.OnRequest +/
+   
+   Local string &mode, &languageCode;
+   
+   Local Message &responseMsg;
+   Local XmlDoc &xmlDocReq, &xmlDocRes;
+   Local XmlNode &xmlNode;
+   
+   /* Get the request xmlDoc */
+   &xmlDocReq = &pRequest.GetXmlDoc();
+   
+   /* Create the response xmlDoc */
+   &xmlDocRes = CreateXmlDoc("");
+   &xmlNode = &xmlDocRes.CreateDocumentElement(&cstXML_ELEMENT_RESPONSE);
+   
+   /* Get mode and language value */
+   &xmlNode = &xmlDocReq.DocumentElement;
+   &mode = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_MODE);
+   &languageCode = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LANGUAGE_CODE);
+   
+   /* Check the language */
+   If All(&languageCode) And
+         (&languageCode <> %Language) Then
+      SetLanguage(&languageCode);
+   End-If;
+   
+   Evaluate &mode
+   When &cstXML_ATTRIBUTEVALUE_MODE_CHECK_REMOTE_TILES_ACCESS
+      /* Process the check remote tiles access request */
+      %This.processCheckRemoteTilesAccessRequest(&xmlDocReq, &xmlDocRes);
+      Break;
+      
+   When &cstXML_ATTRIBUTEVALUE_MODE_GET_LANDING_PAGES
+      /* Process the get landing page request */
+      %This.processGetLandingPagesRequest(&xmlDocReq, &xmlDocRes, False);
+      Break;
+      
+   When &cstXML_ATTRIBUTEVALUE_MODE_GET_ALLLANDING_PAGES
+      /* Process the get landing page request */
+      %This.processGetLandingPagesRequest(&xmlDocReq, &xmlDocRes, True);
+      Break;
+      
+   When &cstXML_ATTRIBUTEVALUE_MODE_SAVE_LANDING_PAGES
+      /* Process the save landing page request */
+      %This.processSaveLandingPagesRequest(&xmlDocReq, &xmlDocRes);
+      Break;
+      
+   When &cstXML_ATTRIBUTEVALUE_MODE_GET_NAVBAR
+      /* Process the get NavBar request */
+      %This.processGetNavBarRequest(&xmlDocReq, &xmlDocRes);
+      Break;
+      
+   When &cstXML_ATTRIBUTEVALUE_MODE_GET_TILE_CATEGORIES
+      /* Process the get tile categories request */
+      %This.processGetTileCategoriesRequest(&xmlDocReq, &xmlDocRes);
+      Break;
+      
+   When &cstXML_ATTRIBUTEVALUE_MODE_GET_UNFOLDERS
+      /* Process the get remote folder request */
+      %This.processGetUnFolderRequest(&xmlDocReq, &xmlDocRes, &pRequest);
+      Break;
+      
+   End-Evaluate;
+   
+   
+   /* Add the error message, if any */
+   If (%This.ErrorMessage <> "") Then
+      &xmlNode = &xmlDocRes.DocumentElement.AddElement(&cstXML_ELEMENT_ERROR);
+      &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_ERROR_MSG_SET_ID, String(%This.ErrorMsgSetNumber));
+      &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_ERROR_MSG_ID, String(%This.ErrorMsgNumber));
+      &xmlNode.NodeValue = &ErrorMessage;
+   End-If;
+   
+   
+   /* Create the response message */
+   &responseMsg = CreateMessage(Operation.PTUN_LANDING_PAGE, %IntBroker_Response);
+   &responseMsg.SetXmlDoc(&xmlDocRes);
+   
+   Return &responseMsg;
+   
+end-method;
+
+
+
+/**
+  * Reposition the portal URl to the current system, assuming the current node portal URL is set already
+  *
+  * @param pUrl     PSP URL.
+  *
+  * @return adjusted URL.
+  *
+  */
+method setCurrentNodePortalUrl
+   /+ &pNUIReg as PTNUI:Registry:NUIRegistry, +/
+   /+ &pPortalReg as ApiObject +/
+   
+   Local string &hostNode;
+   
+   &hostNode = &pNUIReg.getPortalHostNode(&pPortalReg);
+   &currentNodePortalURI_inst = &pNUIReg.getNodePortalUrlForNode(&hostNode);
+   
+end-method;
+
+
+
+/**
+  * Reposition the tile portal URL to the current system, assuming the current node portal URL is set already
+  *
+  * @param pTab     The Landing Page Tab to check.
+  *
+  */
+method repositionTilesPortalUrl
+   /+ &pTileList as Array of PTNUI:Model:Tile +/
+   
+   Local integer &o;
+   
+   If (&currentNodePortalURI_inst = "") Then
+      Return;
+   End-If;
+   
+   For &o = 1 To &pTileList.Len
+      %This.repositionTilePortalUrl(&pTileList [&o]);
+   End-For;
+   
+end-method;
+
+
+
+/**
+  * Reposition the tile portal URL to the current system, assuming the current node portal URL is set already
+  *
+  * @param pTile     The Tile to check.
+  *
+  */
+method repositionTilePortalUrl
+   /+ &pTile as PTNUI:Model:Tile +/
+   
+   Local integer &o;
+   
+   Local string &newUrl;
+   Local array of string &urlParts;
+   
+   If (&currentNodePortalURI_inst = "") Then
+      Return;
+   End-If;
+   
+   &urlParts = Split(&pTile.GltPortalActionUrl, "/");
+   If (&urlParts.Len > 6) Then
+      &newUrl = RTrim(&currentNodePortalURI_inst, "/");
+      For &o = 6 To &urlParts.Len
+         &newUrl = &newUrl | "/" | &urlParts [&o];
+      End-For;
+      &pTile.GltPortalActionUrl = &newUrl;
+   End-If;
+   
+end-method;
+
+
+
+/**
+  * Swap all remote cluster aware tiles with the local ones.
+  *
+  * @param pPortalName     Portal Name.
+  * @param pTileList       The list of tiles to check.
+  *
+  */
+method checkClusterAwareTiles
+   /+ &pPortalName as String, +/
+   /+ &pTileList as Array of PTNUI:Model:Tile +/
+   
+   Local integer &i, &j, &pos;
+   Local string &tileName;
+   
+   Local PTNUI:Model:Tile &tile, &localTile;
+   Local array of PTNUI:Model:Tile &tileList;
+   Local PTNUI:Model:TileCategory &tc;
+   Local array of PTNUI:Model:TileCategory &tcList;
+   
+   /* Get the local tile list */
+   If (&localClusterAwarTileListPortalName_inst <> &pPortalName) Then
+      
+      /* Reset the instance variables */
+      &localClusterAwarTileListPortalName_inst = &pPortalName;
+      &localClusterAwarTileList_inst = CreateArrayRept(&tile, 0);
+      &localClusterAwarTileNameList_inst = CreateArrayRept("", 0);
+      
+      /* Get the local category list */
+      &tcList = %This.getLocalTileCategories(&pPortalName);
+      For &i = 1 To &tcList.Len
+         &tc = &tcList [&i];
+         &tileList = &tc.GetTiles();
+         For &j = 1 To &tileList.Len
+            &tile = &tileList [&j];
+            If (&tile.IsClusterAwareTile) Then
+               &localClusterAwarTileList_inst.Push(&tile);
+               &localClusterAwarTileNameList_inst.Push(&tile.TileName);
+            End-If;
+         End-For;
+      End-For;
+      
+   End-If;
+   
+   If (&localClusterAwarTileList_inst.Len = 0) Then
+      Return;
+   End-If;
+   
+   For &i = 1 To &pTileList.Len
+      
+      &tile = &pTileList [&i];
+      
+      If ( Not &tile.IsClusterAwareTile) Then
+         Continue;
+      End-If;
+      
+      If (&tile.IsRemote) Then
+         &tileName = &tile.RemoteCRefName;
+      Else
+         &tileName = &tile.TileName;
+      End-If;
+      
+      &pos = &localClusterAwarTileNameList_inst.Find(&tileName);
+      If (&pos > 0) Then
+         &localTile = &localClusterAwarTileList_inst [&pos];
+         If (&localTile.ID <> &tile.ID) Then
+            &localTile = &localTile.clone();
+            &localTile.SeqNum = &tile.SeqNum;
+            &localTile.RowNum = &tile.RowNum;
+            &localTile.ColNum = &tile.ColNum;
+            &localTile.MergeSystemData(&tile);
+            &pTileList [&i] = &localTile;
+         End-If;
+      End-If;
+      
+   End-For;
+   
+end-method;
+
+
+
+/**
+  * Check remote tiles access, and refresh the tile data.  No access tiles would be removed from the array.
+  *
+  * @param pPortalName     Portal Name.
+  * @param pTileList       Array of array of tiles.
+  *
+  */
+method checkRemoteTilesAccess
+   /+ &pPortalName as String, +/
+   /+ &pTileList as Array2 of PTNUI:Model:Tile +/
+   
+   Local integer &i, &j, &pos;
+   
+   Local string &nodeName;
+   Local string &targetNode;
+   Local array of string &remoteNodeNames, &authorizedTileIDs;
+   Local array of string &targetNodes;
+   
+   Local Message &reqMsg, &resMsg;
+   Local array of Message &reqMsgs, &resMsgs;
+   
+   Local XmlDoc &xmlDoc;
+   Local array of XmlNode &xmlNodeList;
+   Local XmlNode &xmlNode, &xmlTilesNode;
+   
+   Local PTNUI:Model:Tile &tile, &localTile;
+   Local array of PTNUI:Model:Tile &thisTileList, &authorizedTiles;
+   Local array of array of PTNUI:Model:Tile &remoteTiles;
+   
+   If None(&pPortalName) Or
+         None(&pTileList) Then
+      Return;
+   End-If;
+   
+   &remoteNodeNames = CreateArrayRept("", 0);
+   &remoteTiles = CreateArrayRept(CreateArrayRept(&tile, 0), 0);
+   
+   /* Get the remote tile list */
+   For &i = 1 To &pTileList.Len
+      
+      &thisTileList = &pTileList [&i];
+      If None(&thisTileList) Then
+         Continue;
+      End-If;
+      
+      For &j = 1 To &thisTileList.Len
+         &tile = &thisTileList [&j];
+         If (&tile.IsRemote) Then
+            &nodeName = &tile.RemoteNodeName;
+            &pos = &remoteNodeNames.Find(&nodeName);
+            If (&pos = 0) Then
+               &remoteNodeNames.Push(&nodeName);
+               &remoteTiles.Push(CreateArray(&tile));
+            Else
+               &remoteTiles [&pos].Push(&tile);
+            End-If;
+         End-If;
+      End-For;
+      
+   End-For;
+   
+   
+   /* Process the list */
+   &authorizedTileIDs = CreateArrayRept("", 0);
+   &authorizedTiles = CreateArrayRept(&tile, 0);
+   
+   &targetNodes = CreateArrayRept("", 0);
+   &reqMsgs = CreateArrayRept(&reqMsg, 0);
+   
+   For &i = 1 To &remoteNodeNames.Len
+      
+      &nodeName = &remoteNodeNames [&i];
+      &thisTileList = &remoteTiles [&i];
+      
+      If ( Not IsRemotePIANode(&nodeName)) Then
+         
+         /* Check the local registry */
+         &thisTileList = %This.checkLocalRemoteTilesAccess(&pPortalName, &thisTileList);
+         For &j = 1 To &thisTileList.Len
+            &tile = &thisTileList [&j];
+            &authorizedTileIDs.Push(&tile.ID);
+            &authorizedTiles.Push(&tile);
+         End-For;
+         
+         Continue;
+         
+      End-If;
+      
+      If (&remoteNodes_inst.Len = 0) Then
+         Continue;
+      End-If;
+      
+      /* Get the network node */
+      SQLExec(SQL.PTBR_GET_NETWORK_NODE, &nodeName, &targetNode);
+      If None(&targetNode) Then
+         &targetNode = &nodeName;
+      End-If;
+      
+      If (&remoteNodes_inst.Find(&targetNode) = 0) Then
+         Continue;
+      End-If;
+      
+      /* Create the request object */
+      &targetNodes.Push(&targetNode);
+      
+      &xmlDoc = CreateXmlDoc("");
+      
+      &xmlNode = &xmlDoc.CreateDocumentElement(&cstXML_ELEMENT_REQUEST);
+      &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_MODE, &cstXML_ATTRIBUTEVALUE_MODE_CHECK_REMOTE_TILES_ACCESS);
+      &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_LANGUAGE_CODE, %Language);
+      &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, &pPortalName);
+      
+      &xmlTilesNode = &xmlNode.AddElement(&cstXML_ELEMENT_TILES);
+      
+      For &j = 1 To &thisTileList.Len
+         &tile = &thisTileList [&j];
+         &xmlNode = &xmlTilesNode.AddElement(&cstXML_ELEMENT_TILE);
+         &tile.toXML(&xmlNode);
+      End-For;
+      
+      &reqMsg = CreateMessage(Operation.PTUN_LANDING_PAGE, %IntBroker_Request);
+      &reqMsg.SetXmlDoc(&xmlDoc);
+      
+      If (&reqMsg.IBInfo.LoadConnectorPropFromNode(&targetNode)) Then
+         &reqMsg.IBInfo.SyncServiceTimeout = &cstIB_TIMEOUT;
+         &reqMsg.IBInfo.ConnectorOverride = True;
+      End-If;
+      
+      &reqMsgs.Push(&reqMsg);
+      
+   End-For;
+   
+   
+   If (&targetNodes.Len > 0) Then
+      
+      try
+         
+         /* Send the messages */
+         &resMsgs = %IntBroker.SyncRequest(&reqMsgs, &targetNodes);
+         
+         For &i = 1 To &resMsgs.Len
+            &resMsg = &resMsgs [&i];
+            If All(&resMsg) Then
+               &xmlDoc = &resMsg.GetXmlDoc();
+               If All(&xmlDoc) Then
+                  &xmlNodeList = &xmlDoc.DocumentElement.GetElementsByTagName(&cstXML_ELEMENT_TILE);
+                  For &j = 1 To &xmlNodeList.Len
+                     
+                     /* Create the object */
+                     &xmlNode = &xmlNodeList [&j];
+                     &tile = create PTNUI:Model:Tile("", "", "", "");
+                     &tile.fromXML(&xmlNode);
+                     
+                     /* Update the tile portal URL */
+                     %This.repositionTilePortalUrl(&tile);
+                     
+                     /* Add to the authorized array */
+                     &authorizedTileIDs.Push(&tile.ID);
+                     &authorizedTiles.Push(&tile);
+                     
+                  End-For;
+                  
+               End-If;
+            End-If;
+         End-For;
+         
+      catch Exception &ex
+      end-try;
+      
+   End-If;
+   
+   
+   /* Remove not authorized tiles */
+   For &i = 1 To &pTileList.Len
+      
+      &thisTileList = &pTileList [&i];
+      If None(&thisTileList) Then
+         Continue;
+      End-If;
+      
+      For &j = &thisTileList.Len To 1 Step - 1
+         &tile = &thisTileList [&j];
+         If (&tile.IsRemote) Then
+            &pos = &authorizedTileIDs.Find(&tile.ID);
+            If (&pos = 0) Then
+               &thisTileList.Replace(&j, 1);
+            Else
+               
+               /* Swap the tile */
+               &localTile = &authorizedTiles [&pos].clone();
+               &localTile.SeqNum = &tile.SeqNum;
+               &localTile.RowNum = &tile.RowNum;
+               &localTile.ColNum = &tile.ColNum;
+               &localTile.MergeSystemData(&tile);
+               
+               /* Preserve the pinned tile data */
+               If (&tile.IsPinnedTile) Then
+                  &localTile.IsPinnedTile = True;
+                  &localTile.NodeName = &tile.NodeName;
+                  &localTile.PortalName = &tile.PortalName;
+                  &localTile.TileName = &tile.TileName;
+                  If (&tile.Label <> "") Then
+                     &localTile.Label = &tile.Label;
+                  End-If;
+                  &localTile.GltContentActionUrl = &tile.GltContentActionUrl;
+                  &localTile.GltPortalActionUrl = &tile.GltPortalActionUrl;
+                  &localTile.GltPlusURLParam = &tile.GltPlusURLParam;
+                  If (&localTile.GltContentUrl <> "") And
+                        (&localTile.GltPlusURLParam <> "") Then
+                     If (Find("?", &localTile.GltContentUrl) <= 0) Then
+                        &localTile.GltContentUrl = &localTile.GltContentUrl | "?";
+                     End-If;
+                     If (Right(&localTile.GltContentUrl, 1) <> "&") Then
+                        &localTile.GltContentUrl = &localTile.GltContentUrl | "&";
+                     End-If;
+                     &localTile.GltContentUrl = &localTile.GltContentUrl | &localTile.GltPlusURLParam;
+                  End-If;
+                  &localTile.IsRemote = &tile.IsRemote;
+                  &localTile.RemoteNodeName = &tile.RemoteNodeName;
+                  &localTile.RemotePortalName = &tile.RemotePortalName;
+                  &localTile.RemoteCRefName = &tile.RemoteCRefName;
+                  /* RepositionTile required for cluster env */
+                  %This.repositionTilePortalUrl(&localTile);
+               End-If;
+               
+               &thisTileList [&j] = &localTile;
+               
+            End-If;
+         End-If;
+      End-For;
+      
+   End-For;
+   
+end-method;
+
+
+
+/**
+  * Process the check remote tiles access request
+  *
+  * @param pXmlDocReq     Request XmlDoc.
+  * @param pXmlDocRes     Response XmlDoc.
+  *
+  */
+method processCheckRemoteTilesAccessRequest
+   /+ &pXmlDocReq as XmlDoc, +/
+   /+ &pXmlDocRes as XmlDoc +/
+   
+   Local integer &i;
+   Local string &portalName;
+   
+   Local XmlNode &xmlNode, &xmlTilesNode, &xmlTileNode;
+   Local array of XmlNode &xmlNodeList;
+   
+   Local PTNUI:Model:Tile &tile;
+   Local array of PTNUI:Model:Tile &tileList, &authorizedTiles;
+   
+   /* Get the portal name */
+   &xmlNode = &pXmlDocReq.DocumentElement;
+   &portalName = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+   
+   If None(&portalName) Then
+      Return;
+   End-If;
+   
+   /* Get the list of tiles to check */
+   &xmlNodeList = &xmlNode.GetElementsByTagName(&cstXML_ELEMENT_TILE);
+   &tileList = CreateArrayRept(&tile, 0);
+   
+   For &i = 1 To &xmlNodeList.Len
+      /* Create the object */
+      &xmlNode = &xmlNodeList [&i];
+      &tile = create PTNUI:Model:Tile("", "", "", "");
+      &tile.fromXML(&xmlNode);
+      &tileList.Push(&tile);
+   End-For;
+   
+   /* Check the tile access in local registry */
+   &authorizedTiles = %This.checkLocalRemoteTilesAccess(&portalName, &tileList);
+   
+   /* Add the authorized list to response */
+   &xmlTilesNode = &pXmlDocRes.DocumentElement.AddElement(&cstXML_ELEMENT_TILES);
+   
+   For &i = 1 To &authorizedTiles.Len
+      &tile = &authorizedTiles [&i];
+      &xmlTileNode = &xmlTilesNode.AddElement(&cstXML_ELEMENT_TILE);
+      &tile.toXML(&xmlTileNode);
+   End-For;
+   
+end-method;
+
+
+
+/**
+  * Check remote tiles access in local registry, and refresh the tile data.
+  *
+  * @param pPortalName     Portal Name.
+  * @param pTileList       Array of tiles.
+  *
+  * @return array of tiles user has access to.
+  *
+  */
+method checkLocalRemoteTilesAccess
+   /+ &pPortalName as String, +/
+   /+ &pTileList as Array of PTNUI:Model:Tile +/
+   /+ Returns Array of PTNUI:Model:Tile +/
+   
+   Local integer &i;
+   Local string &crefName;
+   
+   Local ApiObject &portalReg, &crefObj;
+   
+   Local PTNUI:Model:Tile &thisItem, &localTile;
+   Local array of PTNUI:Model:Tile &authorizedTiles;
+   
+   &authorizedTiles = CreateArrayRept(&thisItem, 0);
+   
+   If None(&pPortalName) Or
+         None(&pTileList) Then
+      Return &authorizedTiles;
+   End-If;
+   
+   try
+      
+      &portalReg = %Session.GetPortalRegistry();
+      If ( Not &portalReg.Open(&pPortalName)) Then
+         Return &authorizedTiles;
+      End-If;
+      
+      For &i = 1 To &pTileList.Len
+         
+         &thisItem = &pTileList [&i];
+         
+         &crefName = &thisItem.RemoteCRefName;
+         &crefObj = &portalReg.FindCRefByName(&crefName);
+         If (IsValid(&crefObj)) Then
+            
+            /* Create a new tile object */
+            &localTile = create PTNUI:Model:Tile(&thisItem.NodeName, &thisItem.PortalName, &thisItem.TileName, "");
+            &localTile.SetPropertiesFromCref(&crefObj);
+            
+            &localTile.CategoryName = &thisItem.CategoryName;
+            &localTile.CategoryLabel = &thisItem.CategoryLabel;
+            
+            /* Copy remote tile properties */
+            &localTile.IsRemote = &thisItem.IsRemote;
+            &localTile.RemoteNodeName = &thisItem.RemoteNodeName;
+            &localTile.RemotePortalName = &thisItem.RemotePortalName;
+            &localTile.RemoteCRefName = &thisItem.RemoteCRefName;
+            
+            /* Copy properties from the selected/available tile */
+            &localTile.SeqNum = &thisItem.SeqNum;
+            &localTile.RowNum = &thisItem.RowNum;
+            &localTile.ColNum = &thisItem.ColNum;
+            &localTile.LayoutBehavior = &thisItem.LayoutBehavior;
+            &localTile.IsRemoveable = &thisItem.IsRemoveable;
+            
+            /* Copy properties from the pinned tile */
+            If (&thisItem.IsPinnedTile) Then
+               &localTile.IsPinnedTile = &thisItem.IsPinnedTile;
+               If (&thisItem.Label <> "") Then
+                  &localTile.Label = &thisItem.Label;
+               End-If;
+               &localTile.GltPlusURLParam = &thisItem.GltPlusURLParam;
+            End-If;
+            
+            /* Add to the array */
+            &authorizedTiles.Push(&localTile);
+            
+         End-If;
+         
+      End-For;
+      
+      &portalReg.close();
+      
+   catch Exception &ex
+   end-try;
+   
+   Return &authorizedTiles;
+   
+end-method;
+
+method getAllLandingPages
+   /+ &pPortalName as String +/
+   /+ Returns Array of PTNUI:Model:LandingPageTab +/
+   
+   %This.GetAllLP = True;
+   REM method getLandingPages() will check for property %This.GetAllLP;
+   Local array of PTNUI:Model:LandingPageTab &landingPageList = %This.getLandingPages(&pPortalName);
+   %This.GetAllLP = False;
+   Return &landingPageList;
+end-method;
+
+/**
+  * Get landing page list
+  *
+  * @param pPortalName     Portal Name.
+  *
+  * @return array of both local and remote landing pages.
+  *
+  */
+method getLandingPages
+   /+ &pPortalName as String +/
+   /+ Returns Array of PTNUI:Model:LandingPageTab +/
+   
+   Local integer &i, &j, &m, &n;
+   Local boolean &found;
+   Local string &targetNode;
+   
+   Local array of string &targetNodes;
+   
+   Local Message &reqMsg, &resMsg;
+   Local array of Message &reqMsgs, &resMsgs;
+   
+   Local XmlDoc &xmlDoc;
+   Local array of XmlNode &xmlNodeList;
+   Local XmlNode &xmlNode;
+   
+   Local array of PTNUI:Model:LandingPageTab &landingPageList;
+   Local PTNUI:Model:LandingPageTab &lpt, &lptMerged, &lptOriginal;
+   Local PTNUI:Model:Tile &tile, &existingTile;
+   Local array of PTNUI:Model:Tile &tileList, &existingTileList;
+   Local array of array of PTNUI:Model:Tile &tileLists;
+   
+   /* Get the local list first */
+   &landingPageList = %This.getLocalLandingPages(&pPortalName);
+   
+   /* Check the local tabs */
+   For &i = 1 To &landingPageList.Len
+      
+      &lpt = &landingPageList [&i];
+      
+      /* Keep the originals */
+      &lptOriginal = &lpt.clone();
+      &lpt.OriginalTabs.Push(&lptOriginal);
+      
+      /* Check cluster aware tiles */
+      %This.checkClusterAwareTiles(&pPortalName, &lpt.GetTiles());
+      If (&remoteNodes_inst.Len = 0) Then
+         /* Update the tile portal URL */
+         %This.repositionTilesPortalUrl(&lpt.GetTiles());
+      End-If;
+   End-For;
+   
+   If (&remoteNodes_inst.Len > 0) Then
+      
+      /* Create request object for each remote node */
+      &targetNodes = CreateArrayRept("", 0);
+      &reqMsgs = CreateArrayRept(&reqMsg, 0);
+      For &i = 1 To &remoteNodes_inst.Len
+         
+         &targetNode = &remoteNodes_inst [&i];
+         &targetNodes.Push(&targetNode);
+         
+         &xmlDoc = CreateXmlDoc("");
+         &xmlNode = &xmlDoc.CreateDocumentElement(&cstXML_ELEMENT_REQUEST);
+         If (%This.GetAllLP) Then
+            &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_MODE, &cstXML_ATTRIBUTEVALUE_MODE_GET_ALLLANDING_PAGES);
+         Else
+            &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_MODE, &cstXML_ATTRIBUTEVALUE_MODE_GET_LANDING_PAGES);
+         End-If;
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_LANGUAGE_CODE, %Language);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, &pPortalName);
+         
+         &reqMsg = CreateMessage(Operation.PTUN_LANDING_PAGE, %IntBroker_Request);
+         &reqMsg.SetXmlDoc(&xmlDoc);
+         
+         If (&reqMsg.IBInfo.LoadConnectorPropFromNode(&targetNode)) Then
+            &reqMsg.IBInfo.SyncServiceTimeout = &cstIB_TIMEOUT;
+            &reqMsg.IBInfo.ConnectorOverride = True;
+         End-If;
+         
+         &reqMsgs.Push(&reqMsg);
+         
+      End-For;
+      
+      try
+         
+         /* Send the messages */
+         &resMsgs = %IntBroker.SyncRequest(&reqMsgs, &targetNodes);
+         
+         For &i = 1 To &resMsgs.Len
+            &resMsg = &resMsgs [&i];
+            If All(&resMsg) Then
+               &xmlDoc = &resMsg.GetXmlDoc();
+               If All(&xmlDoc) Then
+                  &xmlNodeList = &xmlDoc.DocumentElement.GetElementsByTagName(&cstXML_ELEMENT_LANDING_PAGE);
+                  For &j = 1 To &xmlNodeList.Len
+                     
+                     /* Create the object */
+                     &xmlNode = &xmlNodeList [&j];
+                     &lpt = create PTNUI:Model:LandingPageTab("", "", "");
+                     &lpt.fromXML(&xmlNode);
+                     
+                     /* Ignore empty tabs */
+                     If (&lpt.GetTiles().Len = 0) Then
+                        Continue;
+                     End-If;
+                     
+                     /* Set remote flags */
+                     &lpt.IsRemote = True;
+                     &lpt.RemoteNodeName = &lpt.NodeName;
+                     &lpt.RemotePortalName = &lpt.PortalName;
+                     &lpt.RemoteCRefName = &lpt.TabName;
+                     &lpt.NetworkNodeName = &targetNodes [&i];
+                     
+                     /* Update the tile portal URL */
+                     %This.repositionTilesPortalUrl(&lpt.GetTiles());
+                     
+                     /* Keep the original */
+                     &lptOriginal = &lpt.clone();
+                     &lpt.OriginalTabs.Push(&lptOriginal);
+                     
+                     /* Check cluster aware tiles */
+                     %This.checkClusterAwareTiles(&pPortalName, &lpt.GetTiles());
+                     
+                     /* check for merge */
+                     &lptMerged = Null;
+                     /* For PINTO API:We have to get all LPs and don't merge user local LPs */
+                     If ( Not %This.GetAllLP Or
+                           &lpt.IsSysTab) Then
+                        For &m = 1 To &landingPageList.Len
+                           If (&landingPageList [&m].SysLabel = &lpt.SysLabel) Then
+                              &lptMerged = &landingPageList [&m];
+                              Break;
+                           End-If;
+                        End-For;
+                     End-If;
+                     
+                     If All(&lptMerged) Then
+                        
+                        /* Attach the original */
+                        &lptMerged.OriginalTabs.Push(&lptOriginal);
+                        
+                        /* Update the properties when needed */
+                        If (&lptMerged.LayoutBehavior > &lptOriginal.LayoutBehavior) Then
+                           &lptMerged.LayoutBehavior = &lptOriginal.LayoutBehavior;
+                        End-If;
+                        If (&lptOriginal.IsLayoutLocked) Then
+                           &lptMerged.IsLayoutLocked = True;
+                        End-If;
+                        If ( Not &lptOriginal.IsRenameable) Then
+                           &lptMerged.IsRenameable = False;
+                           &lptMerged.Label = &lptMerged.SysLabel;
+                        End-If;
+                        
+                        /* Merge Tiles */
+                        &tileList = &lpt.GetTiles();
+                        &existingTileList = &lptMerged.GetTiles();
+                        For &m = 1 To &tileList.Len
+                           &tile = &tileList [&m];
+                           &found = False;
+                           For &n = 1 To &existingTileList.Len
+                              &existingTile = &existingTileList [&n];
+                              If (&existingTile.equals(&tile)) Then
+                                 &found = True;
+                                 If (&existingTile.IsRemote) And
+                                       ( Not &tile.IsRemote) Then
+                                    /* Swap the remote tile with a local one */
+                                    &existingTileList [&n] = &tile;
+                                 End-If;
+                                 /* Update the layout behavior */
+                                 If (&existingTile.LayoutBehavior > &tile.LayoutBehavior) Then
+                                    &existingTile.MergeSystemData(&tile);
+                                 End-If;
+                                 Break;
+                              End-If;
+                           End-For;
+                           If Not &found Then
+                              &existingTileList.Push(&tile);
+                           End-If;
+                        End-For;
+                        
+                     Else
+                        &landingPageList.Push(&lpt);
+                     End-If;
+                  End-For;
+               End-If;
+            End-If;
+         End-For;
+         
+      catch Exception &ex
+      end-try;
+      
+   End-If;
+   
+   
+   /********************************/
+   /* Check remote Tiles' Security */
+   /********************************/
+   &tileLists = CreateArrayRept(CreateArrayRept(&tile, 0), 0);
+   
+   For &i = 1 To &landingPageList.Len
+      &tileList = &landingPageList [&i].GetTiles();
+      If All(&tileList) Then
+         &tileLists.Push(&tileList);
+      End-If;
+   End-For;
+   
+   If (&tileLists.Len > 0) Then
+      %This.checkRemoteTilesAccess(&pPortalName, &tileLists);
+   End-If;
+   
+   /* Eliminate duplicate tiles */
+   For &i = 1 To &landingPageList.Len
+      &lpt = &landingPageList [&i];
+      &tileList = &lpt.GetTiles();
+      For &m = &tileList.Len To 2 Step - 1
+         &tile = &tileList [&m];
+         For &n = 1 To &m - 1
+            &existingTile = &tileList [&n];
+            If (&existingTile.equals(&tile)) Then
+               &lpt.DeleteTileById(&tile.ID);
+               Break;
+            End-If;
+         End-For;
+      End-For;
+   End-For;
+   
+   Return &landingPageList;
+   
+end-method;
+
+
+
+/**
+  * Process the get landing pages request
+  *
+  * @param pXmlDocReq     Request XmlDoc.
+  * @param pXmlDocRes     Response XmlDoc.
+  *
+  */
+method processGetLandingPagesRequest
+   /+ &pXmlDocReq as XmlDoc, +/
+   /+ &pXmlDocRes as XmlDoc, +/
+   /+ &bAll as Boolean +/
+   
+   Local integer &i;
+   Local string &portalName;
+   
+   Local XmlNode &xmlNode, &xmlPagesNode, &xmlPageNode;
+   
+   Local array of PTNUI:Model:LandingPageTab &landingPageList;
+   Local PTNUI:Model:LandingPageTab &lpt;
+   
+   /* Get the portal name */
+   &xmlNode = &pXmlDocReq.DocumentElement;
+   &portalName = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+   
+   If None(&portalName) Then
+      Return;
+   End-If;
+   
+   &xmlPagesNode = &pXmlDocRes.DocumentElement.AddElement(&cstXML_ELEMENT_LANDING_PAGES);
+   
+   /* Get the local list first */
+   &landingPageList = %This.getLocalLandingPages(&portalName);
+   
+   /***** Check for new flag &bAll *****/
+   /* bAll=True means get all landing pages */
+   /* bAll=False means get the original set of landing pages (not including local) */
+   For &i = 1 To &landingPageList.Len
+      &lpt = &landingPageList [&i];
+      If (&bAll) Then
+         &xmlPageNode = &xmlPagesNode.AddElement(&cstXML_ELEMENT_LANDING_PAGE);
+         &lpt.toXML(&xmlPageNode);
+      Else
+         If (&lpt.IsSysTab) And
+               (&lpt.TabName <> &cstDEFAULT_LANDING_PAGE) Then
+            &xmlPageNode = &xmlPagesNode.AddElement(&cstXML_ELEMENT_LANDING_PAGE);
+            &lpt.toXML(&xmlPageNode);
+         End-If;
+      End-If;
+   End-For;
+   
+end-method;
+
+
+
+/**
+  * Get local landing page list
+  *
+  * @param pPortalName     Portal Name.
+  *
+  * @return array of local landing pages.
+  *
+  */
+method getLocalLandingPages
+   /+ &pPortalName as String +/
+   /+ Returns Array of PTNUI:Model:LandingPageTab +/
+   
+   Local ApiObject &portalReg;
+   
+   Local PTNUI:Model:LandingPage &lp, &lpSysDef;
+   Local PTNUI:Registry:LandingPageRegistry &lpr;
+   
+   Local array of PTNUI:Model:LandingPageTab &landingPageTabList;
+   
+   If None(&pPortalName) Then
+      Return &landingPageTabList;
+   End-If;
+   
+   try
+      
+      &portalReg = %Session.GetPortalRegistry();
+      If &portalReg.Open(&pPortalName) Then
+         
+         &lp = create PTNUI:Model:LandingPage();
+         &lpSysDef = create PTNUI:Model:LandingPage();
+         
+         &lpr = create PTNUI:Registry:LandingPageRegistry();
+         &lpr.LoadUserTiles(&portalReg, &lp);
+         &lpr.LoadSystemTiles(&portalReg, &lpSysDef);
+         &lp.MergeSystemData(&lpSysDef);
+         
+         %This.setCurrentNodePortalUrl(&lpr, &portalReg);
+         
+         &landingPageTabList = &lp.GetTabs();
+         
+         &portalReg.close();
+         
+      End-If;
+      
+   catch Exception &ex
+   end-try;
+   
+   Return &landingPageTabList;
+   
+end-method;
+
+
+
+/**
+  * Save landing page list
+  *
+  * @param pPortalName     Portal Name.
+  * @param pTabList        List of Tabs to save.
+  *
+  */
+method saveLandingPages
+   /+ &pPortalName as String, +/
+   /+ &pTabList as Array of PTNUI:Model:LandingPageTab +/
+   
+   Local integer &i, &j, &pos;
+   
+   Local string &networkNodeName;
+   Local array of string &targetNodes;
+   Local array of number &tabCounts;
+   
+   Local Message &reqMsg, &resMsg;
+   Local array of Message &reqMsgs, &resMsgs;
+   
+   Local XmlDoc &xmlDoc;
+   Local array of XmlDoc &xmlRequestDocs;
+   Local array of XmlNode &xmlPagesNodes;
+   Local XmlNode &xmlNode, &xmlPagesNode;
+   
+   Local array of PTNUI:Model:LandingPageTab &localTabList, &originalTabList;
+   Local PTNUI:Model:LandingPageTab &lpt, &lptMerged, &lptOrig;
+   
+   
+   /* Check parameters */
+   If None(&pPortalName) Or
+         None(&pTabList) Or
+         (&pTabList.Len = 0) Then
+      Return;
+   End-If;
+   
+   
+   /* Create the arrays */
+   &tabCounts = CreateArrayRept(0, 0);
+   &xmlRequestDocs = CreateArrayRept(&xmlDoc, 0);
+   &xmlPagesNodes = CreateArrayRept(&xmlNode, 0);
+   
+   If (&remoteNodes_inst.Len > 0) Then
+      
+      For &i = 1 To &remoteNodes_inst.Len
+         
+         &tabCounts.Push(0);
+         
+         &xmlDoc = CreateXmlDoc("");
+         &xmlRequestDocs.Push(&xmlDoc);
+         
+         &xmlNode = &xmlDoc.CreateDocumentElement(&cstXML_ELEMENT_REQUEST);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_MODE, &cstXML_ATTRIBUTEVALUE_MODE_SAVE_LANDING_PAGES);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_LANGUAGE_CODE, %Language);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, &pPortalName);
+         
+         &xmlPagesNode = &xmlNode.AddElement(&cstXML_ELEMENT_LANDING_PAGES);
+         &xmlPagesNodes.Push(&xmlPagesNode);
+         
+      End-For;
+      
+   End-If;
+   
+   
+   /* Now process the list */
+   &localTabList = CreateArrayRept(&lpt, 0);
+   For &i = 1 To &pTabList.Len
+      
+      &lptMerged = &pTabList [&i];
+      
+      If &lptMerged.IsMerged Then
+         &originalTabList = &lptMerged.OriginalTabs;
+      Else
+         &originalTabList = CreateArray(&lptMerged);
+      End-If;
+      
+      For &j = 1 To &originalTabList.Len
+         
+         &lptOrig = &originalTabList [&j];
+         
+         If (&lptMerged.IsMerged) Then
+            &lpt = &lptMerged.clone();
+            &lpt.NodeName = &lptOrig.NodeName;
+            &lpt.PortalName = &lptOrig.PortalName;
+            &lpt.TabName = &lptOrig.TabName;
+         Else
+            &lpt = &lptMerged;
+         End-If;
+         
+         If (&lptOrig.IsRemote) Then
+            /* Remote tab */
+            
+            &networkNodeName = &lptOrig.NetworkNodeName;
+            
+            &pos = &remoteNodes_inst.Find(&networkNodeName);
+            If (&pos > 0) Then
+               
+               &tabCounts [&pos] = &tabCounts [&pos] + 1;
+               &xmlPagesNode = &xmlPagesNodes [&pos];
+               
+               &xmlNode = &xmlPagesNode.AddElement(&cstXML_ELEMENT_LANDING_PAGE);
+               &lpt.toXML(&xmlNode);
+               
+            End-If;
+            
+         Else
+            /* Add to the local list */
+            &localTabList.Push(&lpt);
+         End-If;
+         
+      End-For;
+      
+   End-For;
+   
+   
+   /* Create the request objects */
+   &targetNodes = CreateArrayRept("", 0);
+   &reqMsgs = CreateArrayRept(&reqMsg, 0);
+   
+   For &i = 1 To &remoteNodes_inst.Len
+      If (&tabCounts [&i] > 0) Then
+         
+         &targetNodes.Push(&remoteNodes_inst [&i]);
+         
+         &reqMsg = CreateMessage(Operation.PTUN_LANDING_PAGE, %IntBroker_Request);
+         &reqMsg.SetXmlDoc(&xmlRequestDocs [&i]);
+         
+         &reqMsgs.Push(&reqMsg);
+         
+      End-If;
+   End-For;
+   
+   
+   /* Save the local tabs first */
+   If (&localTabList.Len > 0) Then
+      %This.saveLocalLandingPages(&pPortalName, &localTabList);
+   End-If;
+   
+   
+   /* Send the remote request */
+   If (&targetNodes.Len > 0) Then
+      try
+         /* Send the messages */
+         &resMsgs = %IntBroker.SyncRequest(&reqMsgs, &targetNodes);
+      catch Exception &ex
+      end-try;
+   End-If;
+   
+end-method;
+
+
+
+/**
+  * Process the save landing pages request
+  *
+  * @param pXmlDocReq     Request XmlDoc.
+  * @param pXmlDocRes     Response XmlDoc.
+  *
+  */
+method processSaveLandingPagesRequest
+   /+ &pXmlDocReq as XmlDoc, +/
+   /+ &pXmlDocRes as XmlDoc +/
+   
+   Local integer &i;
+   Local string &portalName;
+   
+   Local XmlNode &xmlNode;
+   Local array of XmlNode &xmlNodeList;
+   
+   Local array of PTNUI:Model:LandingPageTab &landingPageList;
+   Local PTNUI:Model:LandingPageTab &lpt;
+   
+   /* Get the portal name */
+   &xmlNode = &pXmlDocReq.DocumentElement;
+   &portalName = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+   
+   If None(&portalName) Then
+      Return;
+   End-If;
+   
+   &landingPageList = CreateArrayRept(&lpt, 0);
+   
+   &xmlNodeList = &pXmlDocReq.DocumentElement.GetElementsByTagName(&cstXML_ELEMENT_LANDING_PAGE);
+   For &i = 1 To &xmlNodeList.Len
+      
+      /* Create the object */
+      &xmlNode = &xmlNodeList [&i];
+      &lpt = create PTNUI:Model:LandingPageTab("", "", "");
+      &lpt.fromXML(&xmlNode);
+      
+      &landingPageList.Push(&lpt);
+      
+   End-For;
+   
+   /* Save the list */
+   If (&landingPageList.Len > 0) Then
+      %This.saveLocalLandingPages(&portalName, &landingPageList);
+   End-If;
+   
+end-method;
+
+
+
+/**
+  * Save local landing page list
+  *
+  * @param pPortalName     Portal Name.
+  * @param pTabList        List of tabs to save
+  *
+  */
+method saveLocalLandingPages
+   /+ &pPortalName as String, +/
+   /+ &pTabList as Array of PTNUI:Model:LandingPageTab +/
+   
+   Local integer &i;
+   
+   Local ApiObject &portalReg;
+   
+   Local PTNUI:Model:LandingPage &lp;
+   Local PTNUI:Registry:LandingPageRegistry &lpr;
+   
+   If None(&pPortalName) Then
+      Return;
+   End-If;
+   
+   try
+      
+      &portalReg = %Session.GetPortalRegistry();
+      If &portalReg.Open(&pPortalName) Then
+         
+         &lp = create PTNUI:Model:LandingPage();
+         
+         For &i = 1 To &pTabList.Len
+            &lp.AddTab(&pTabList [&i]);
+         End-For;
+         
+         &lpr = create PTNUI:Registry:LandingPageRegistry();
+         &lpr.SaveUserTiles(&portalReg, &lp);
+         
+         &portalReg.close();
+         
+      End-If;
+      
+   catch Exception &ex
+   end-try;
+   
+end-method;
+
+
+method getDashboard
+   /+ &pPortalName as String, +/
+   /+ &dashboardName as String +/
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   Local PTNUI:Model:LandingPageTab &dashboard;
+   &dashboard = %This.getLocalDashboard(&pPortalName, &dashboardName);
+   Return &dashboard;
+end-method;
+
+/**
+  * Get NavBar
+  *
+  * @param pPortalName     Portal Name.
+  *
+  * @return the NavBar object.
+  *
+  */
+method getNavBar
+   /+ &pPortalName as String +/
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   
+   Local integer &i, &j, &k;
+   Local boolean &found;
+   Local string &targetNode;
+   
+   Local array of string &targetNodes;
+   
+   Local Message &reqMsg, &resMsg;
+   Local array of Message &reqMsgs, &resMsgs;
+   
+   Local XmlDoc &xmlDoc;
+   Local array of XmlNode &xmlNodeList;
+   Local XmlNode &xmlNode;
+   
+   Local PTNUI:Model:LandingPageTab &navbar;
+   Local PTNUI:Model:Tile &tile, &existingTile;
+   Local array of PTNUI:Model:Tile &tileList, &existingTileList, &remoteTileList;
+   
+   
+   /* Get the local NavBar first */
+   &navbar = %This.getLocalNavBar(&pPortalName);
+   
+   /* Check cluster aware tiles */
+   %This.checkClusterAwareTiles(&pPortalName, &navbar.GetTiles());
+   
+   If (&remoteNodes_inst.Len > 0) Then
+      
+      /* Create request object for each remote node */
+      &targetNodes = CreateArrayRept("", 0);
+      &reqMsgs = CreateArrayRept(&reqMsg, 0);
+      For &i = 1 To &remoteNodes_inst.Len
+         
+         &targetNode = &remoteNodes_inst [&i];
+         &targetNodes.Push(&targetNode);
+         
+         &xmlDoc = CreateXmlDoc("");
+         &xmlNode = &xmlDoc.CreateDocumentElement(&cstXML_ELEMENT_REQUEST);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_MODE, &cstXML_ATTRIBUTEVALUE_MODE_GET_NAVBAR);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_LANGUAGE_CODE, %Language);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, &pPortalName);
+         
+         &reqMsg = CreateMessage(Operation.PTUN_LANDING_PAGE, %IntBroker_Request);
+         &reqMsg.SetXmlDoc(&xmlDoc);
+         
+         If (&reqMsg.IBInfo.LoadConnectorPropFromNode(&targetNode)) Then
+            &reqMsg.IBInfo.SyncServiceTimeout = &cstIB_TIMEOUT;
+            &reqMsg.IBInfo.ConnectorOverride = True;
+         End-If;
+         
+         &reqMsgs.Push(&reqMsg);
+         
+      End-For;
+      
+      try
+         /* Send the messages */
+         &resMsgs = %IntBroker.SyncRequest(&reqMsgs, &targetNodes);
+         
+         &remoteTileList = CreateArrayRept(&tile, 0);
+         
+         For &i = 1 To &resMsgs.Len
+            &resMsg = &resMsgs [&i];
+            If All(&resMsg) Then
+               &xmlDoc = &resMsg.GetXmlDoc();
+               If All(&xmlDoc) Then
+                  &xmlNodeList = &xmlDoc.DocumentElement.GetElementsByTagName(&cstXML_ELEMENT_TILE);
+                  For &j = 1 To &xmlNodeList.Len
+                     
+                     /* Create the object */
+                     &xmlNode = &xmlNodeList [&j];
+                     &tile = create PTNUI:Model:Tile("", "", "", "");
+                     &tile.fromXML(&xmlNode);
+                     If ( Not &tile.IsRemote) Then
+                        &tile.IsRemote = True;
+                        &tile.RemoteNodeName = &tile.NodeName;
+                        &tile.RemotePortalName = &tile.PortalName;
+                        &tile.RemoteCRefName = &tile.TileName;
+                     End-If;
+                     
+                     /* Update the tile portal URL */
+                     %This.repositionTilePortalUrl(&tile);
+                     
+                     /* Add the tile to the array */
+                     &remoteTileList.Push(&tile);
+                     
+                  End-For;
+               End-If;
+            End-If;
+         End-For;
+         
+      catch Exception &ex
+      end-try;
+      
+      /* Check cluster aware tiles */
+      %This.checkClusterAwareTiles(&pPortalName, &remoteTileList);
+      
+      /* Check Duplicate Tiles */
+      &existingTileList = &navbar.GetTiles();
+      
+      For &i = 1 To &remoteTileList.Len
+         &tile = &remoteTileList [&i];
+         
+         If ((&tile.LayoutBehavior = "3DEF") And
+               &navbar.HasUserData) Then
+            Continue;
+         End-If;
+         
+         &found = False;
+         For &k = 1 To &existingTileList.Len
+            &existingTile = &existingTileList [&k];
+            If (&existingTile.equals(&tile)) And
+                  (&existingTile.Label = &tile.Label) Then
+               &found = True;
+               /* Update the layout behavior */
+               If (&existingTile.LayoutBehavior > &tile.LayoutBehavior) Then
+                  &existingTile.MergeSystemData(&tile);
+               End-If;
+               Break;
+            End-If;
+         End-For;
+         
+         If ( Not &found) Then
+            &existingTileList.Push(&tile);
+         End-If;
+      End-For;
+      
+   End-If;
+   
+   
+   /********************************/
+   /* Check remote Tiles' Security */
+   /********************************/
+   &tileList = &navbar.GetTiles();
+   If (All(&tileList) And
+         (&tileList.Len > 0)) Then
+      %This.checkRemoteTilesAccess(&pPortalName, CreateArray(&tileList));
+   End-If;
+   
+   
+   Return &navbar;
+   
+end-method;
+
+
+
+/**
+  * Process the get NavBar request
+  *
+  * @param pXmlDocReq     Request XmlDoc.
+  * @param pXmlDocRes     Response XmlDoc.
+  *
+  */
+method processGetNavBarRequest
+   /+ &pXmlDocReq as XmlDoc, +/
+   /+ &pXmlDocRes as XmlDoc +/
+   
+   Local integer &i;
+   Local string &portalName;
+   
+   Local XmlNode &xmlNode, &xmlPageNode;
+   
+   Local PTNUI:Model:LandingPageTab &navbar;
+   Local array of PTNUI:Model:Tile &tileList;
+   Local PTNUI:Model:Tile &tile;
+   
+   /* Get the portal name */
+   &xmlNode = &pXmlDocReq.DocumentElement;
+   &portalName = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+   
+   If None(&portalName) Then
+      Return;
+   End-If;
+   
+   &xmlPageNode = &pXmlDocRes.DocumentElement.AddElement(&cstXML_ELEMENT_NAVBAR);
+   
+   /* Get the local NavBar first */
+   &navbar = %This.getLocalNavBar(&portalName);
+   
+   If All(&navbar) Then
+      
+      &xmlPageNode.AddAttribute(&cstXML_ATTRIBUTE_NODE_NAME, &navbar.NodeName);
+      &xmlPageNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, &navbar.PortalName);
+      &xmlPageNode.AddAttribute(&cstXML_ATTRIBUTE_TAB_NAME, &navbar.TabName);
+      
+      /* Copy over the non default required/fixed tiles */
+      &tileList = &navbar.GetTiles();
+      For &i = 1 To &tileList.Len
+         
+         &tile = &tileList [&i];
+         
+         Evaluate &tile.TileName
+         When "PTNUI_NB_FAV"
+         When "PTNUI_NB_MRU"
+         When "PTNUI_NB_MENU"
+         When "PTNUI_NB_CHP_TILE"
+         When "PTNUI_NB_FHP_TILE"
+            /* Filter out PT default tiles */
+            Break;
+         When-Other
+            If ((&tile.LayoutBehavior <> "4OPT") Or
+                  &navbar.HasUserData) Then
+               &xmlNode = &xmlPageNode.AddElement(&cstXML_ELEMENT_TILE);
+               &tile.toXML(&xmlNode);
+            End-If;
+         End-Evaluate;
+         
+      End-For;
+      
+   End-If;
+   
+end-method;
+
+method getLocalDashboard
+   /+ &pPortalName as String, +/
+   /+ &dashboardName as String +/
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   Local string &nodeName;
+   
+   Local ApiObject &portalReg;
+   
+   Local PTNUI:Model:LandingPageTab &dashboard, &dashboardSys;
+   Local PTNUI:Registry:DashboardRegistry &dbr;
+   
+   If None(&pPortalName) Or
+         None(&dashboardName) Then
+      Return &dashboard;
+   End-If;
+   
+   try
+      
+      &portalReg = %Session.GetPortalRegistry();
+      If &portalReg.Open(&pPortalName) Then
+         
+         &dbr = create PTNUI:Registry:DashboardRegistry(&dashboardName);
+         
+         &nodeName = &dbr.getPortalHostNode(&portalReg);
+         
+         &dashboard = create PTNUI:Model:LandingPageTab(&nodeName, &pPortalName, &dbr.Name);
+         &dashboardSys = create PTNUI:Model:LandingPageTab(&nodeName, &pPortalName, &dbr.Name);
+         
+         &dbr.LoadUserTiles(&portalReg, &dashboard);
+         &dbr.LoadSystemTiles(&portalReg, &dashboardSys);
+         If Not &dbr.Exists Then
+            Return Null;
+         End-If;
+         
+         If (&dashboard.HasUserData) Then
+            &dashboard.MergeSystemData(&dashboardSys);
+         Else
+            &dashboard = &dashboardSys;
+         End-If;
+         
+         %This.setCurrentNodePortalUrl(&dbr, &portalReg);
+         
+         &portalReg.close();
+         
+      End-If;
+      
+   catch Exception &ex
+   end-try;
+   
+   Return &dashboard;
+end-method;
+
+/**
+  * Get local landing page list
+  *
+  * @param pPortalName     Portal Name.
+  *
+  * @return the NavBar object.
+  *
+  */
+method getLocalNavBar
+   /+ &pPortalName as String +/
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   
+   Local string &nodeName;
+   
+   Local ApiObject &portalReg;
+   
+   Local PTNUI:Model:LandingPageTab &navbar, &navbarSys;
+   Local PTNUI:Registry:NavBarRegistry &nbr;
+   
+   If None(&pPortalName) Then
+      Return &navbar;
+   End-If;
+   
+   try
+      
+      &portalReg = %Session.GetPortalRegistry();
+      If &portalReg.Open(&pPortalName) Then
+         
+         &nbr = create PTNUI:Registry:NavBarRegistry();
+         
+         &nodeName = &nbr.getPortalHostNode(&portalReg);
+         
+         &navbar = create PTNUI:Model:LandingPageTab(&nodeName, &pPortalName, &nbr.Name);
+         &navbarSys = create PTNUI:Model:LandingPageTab(&nodeName, &pPortalName, &nbr.Name);
+         
+         &nbr.LoadUserTiles(&portalReg, &navbar);
+         &nbr.LoadSystemTiles(&portalReg, &navbarSys);
+         
+         If (&navbar.HasUserData) Then
+            &navbar.MergeSystemData(&navbarSys);
+         Else
+            &navbar = &navbarSys;
+         End-If;
+         
+         %This.setCurrentNodePortalUrl(&nbr, &portalReg);
+         
+         &portalReg.close();
+         
+      End-If;
+      
+   catch Exception &ex
+   end-try;
+   
+   Return &navbar;
+   
+end-method;
+
+
+
+
+/**
+  * Get Tile Categories
+  *
+  * @param pPortalName     Portal Name.
+  *
+  * @return array of TileCategory.
+  *
+  */
+method getTileCategories
+   /+ &pPortalName as String +/
+   /+ Returns Array of PTNUI:Model:TileCategory +/
+   
+   Local integer &i, &j;
+   Local string &targetNode;
+   
+   Local array of string &targetNodes;
+   
+   Local Message &reqMsg, &resMsg;
+   Local array of Message &reqMsgs, &resMsgs;
+   
+   Local XmlDoc &xmlDoc;
+   Local array of XmlNode &xmlNodeList;
+   Local XmlNode &xmlNode;
+   
+   Local PTNUI:Model:TileCategory &tc;
+   Local array of PTNUI:Model:TileCategory &tcList;
+   
+   Local PTNUI:Model:Tile &tile;
+   Local array of PTNUI:Model:Tile &tileList;
+   Local array of array of PTNUI:Model:Tile &tileLists;
+   
+   
+   /* Get the local list first */
+   &tcList = %This.getLocalTileCategories(&pPortalName);
+   
+   If (&remoteNodes_inst.Len > 0) Then
+      
+      /* Create request object for each remote node */
+      &targetNodes = CreateArrayRept("", 0);
+      &reqMsgs = CreateArrayRept(&reqMsg, 0);
+      For &i = 1 To &remoteNodes_inst.Len
+         
+         &targetNode = &remoteNodes_inst [&i];
+         &targetNodes.Push(&targetNode);
+         
+         &xmlDoc = CreateXmlDoc("");
+         &xmlNode = &xmlDoc.CreateDocumentElement(&cstXML_ELEMENT_REQUEST);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_MODE, &cstXML_ATTRIBUTEVALUE_MODE_GET_TILE_CATEGORIES);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_LANGUAGE_CODE, %Language);
+         &xmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, &pPortalName);
+         
+         &reqMsg = CreateMessage(Operation.PTUN_LANDING_PAGE, %IntBroker_Request);
+         &reqMsg.SetXmlDoc(&xmlDoc);
+         
+         If (&reqMsg.IBInfo.LoadConnectorPropFromNode(&targetNode)) Then
+            &reqMsg.IBInfo.SyncServiceTimeout = &cstIB_TIMEOUT;
+            &reqMsg.IBInfo.ConnectorOverride = True;
+         End-If;
+         
+         &reqMsgs.Push(&reqMsg);
+         
+      End-For;
+      
+      try
+         /* Send the messages */
+         &resMsgs = %IntBroker.SyncRequest(&reqMsgs, &targetNodes);
+         
+         For &i = 1 To &resMsgs.Len
+            &resMsg = &resMsgs [&i];
+            If All(&resMsg) Then
+               &xmlDoc = &resMsg.GetXmlDoc();
+               If All(&xmlDoc) Then
+                  &xmlNodeList = &xmlDoc.DocumentElement.GetElementsByTagName(&cstXML_ELEMENT_TILE_CATEGORY);
+                  For &j = 1 To &xmlNodeList.Len
+                     
+                     /* Create the object */
+                     &xmlNode = &xmlNodeList [&j];
+                     &tc = create PTNUI:Model:TileCategory("", "", "");
+                     &tc.fromXML(&xmlNode);
+                     If ( Not &tc.IsRemote) Then
+                        &tc.IsRemote = True;
+                        &tc.RemoteNodeName = &tc.NodeName;
+                        &tc.RemotePortalName = &tc.PortalName;
+                        &tc.RemoteCRefName = &tc.TileCategoryName;
+                        &tc.NetworkNodeName = &targetNodes [&i];
+                     End-If;
+                     
+                     /* Update the tile portal URL */
+                     %This.repositionTilesPortalUrl(&tc.GetTiles());
+                     
+                     /* Add to the array */
+                     &tcList.Push(&tc);
+                     
+                  End-For;
+               End-If;
+            End-If;
+         End-For;
+         
+      catch Exception &ex
+      end-try;
+      
+   End-If;
+   
+   
+   /********************************/
+   /* Check remote Tiles' Security */
+   /********************************/
+   &tileLists = CreateArrayRept(CreateArrayRept(&tile, 0), 0);
+   
+   For &i = 1 To &tcList.Len
+      &tileList = &tcList [&i].GetTiles();
+      If All(&tileList) Then
+         &tileLists.Push(&tileList);
+      End-If;
+   End-For;
+   
+   If (&tileLists.Len > 0) Then
+      %This.checkRemoteTilesAccess(&pPortalName, &tileLists);
+   End-If;
+   
+   
+   Return &tcList;
+   
+end-method;
+
+
+
+/**
+  * Process the get Tile Category request
+  *
+  * @param pXmlDocReq     Request XmlDoc.
+  * @param pXmlDocRes     Response XmlDoc.
+  *
+  */
+method processGetTileCategoriesRequest
+   /+ &pXmlDocReq as XmlDoc, +/
+   /+ &pXmlDocRes as XmlDoc +/
+   
+   Local integer &i;
+   Local string &portalName;
+   
+   Local XmlNode &xmlNode, &xmlRootNode;
+   
+   Local PTNUI:Model:TileCategory &tc;
+   Local array of PTNUI:Model:TileCategory &tcList;
+   
+   /* Get the portal name */
+   &xmlNode = &pXmlDocReq.DocumentElement;
+   &portalName = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+   
+   If None(&portalName) Then
+      Return;
+   End-If;
+   
+   &xmlRootNode = &pXmlDocRes.DocumentElement.AddElement(&cstXML_ELEMENT_TILE_CATEGORIES);
+   
+   /* Get the local list first */
+   &tcList = %This.getLocalTileCategories(&portalName);
+   
+   For &i = 1 To &tcList.Len
+      
+      &tc = &tcList [&i];
+      
+      &xmlNode = &pXmlDocRes.DocumentElement.AddElement(&cstXML_ELEMENT_TILE_CATEGORY);
+      &tc.toXML(&xmlNode);
+      
+   End-For;
+   
+end-method;
+
+
+
+/**
+  * Get local tile category list
+  *
+  * @param pPortalName     Portal Name.
+  *
+  * @return array of TileCategory.
+  *
+  */
+method getLocalTileCategories
+   /+ &pPortalName as String +/
+   /+ Returns Array of PTNUI:Model:TileCategory +/
+   
+   Local integer &i;
+   
+   Local ApiObject &portalReg;
+   
+   Local PTNUI:Model:TileCategory &tc;
+   Local array of PTNUI:Model:TileCategory &tcList;
+   Local PTNUI:Registry:NUIRegistry &nuiReg;
+   
+   If None(&pPortalName) Then
+      Return &tcList;
+   End-If;
+   
+   try
+      
+      &portalReg = %Session.GetPortalRegistry();
+      If &portalReg.Open(&pPortalName) Then
+         
+         &nuiReg = create PTNUI:Registry:NUIRegistry();
+         
+         &tcList = &nuiReg.getTileCategories(&portalReg);
+         
+         %This.setCurrentNodePortalUrl(&nuiReg, &portalReg);
+         
+         /* Remove remote categories */
+         For &i = &tcList.Len To 1 Step - 1
+            If (&tcList [&i].IsRemote) Then
+               &tcList.Replace(&i, 1);
+            End-If;
+         End-For;
+         
+         &portalReg.close();
+         
+      End-If;
+      
+   catch Exception &ex
+   end-try;
+   
+   Return &tcList;
+   
+end-method;
+
+
+
+
+/**
+  * Process the get Folders request
+  *
+  * @param pXmlDocReq     Request XmlDoc.
+  * @param pXmlDocRes     Response XmlDoc.
+  *
+  */
+method processGetUnFolderRequest
+   /+ &pXmlDocReq as XmlDoc, +/
+   /+ &pXmlDocRes as XmlDoc, +/
+   /+ &pRequest as Message +/
+   
+   Local string &portalName, &unFolderList, &unCrefList, &UnNode;
+   Local XmlNode &xmlNode;
+   
+   /* Get the folderlist,creflist and node name */
+   &xmlNode = &pXmlDocReq.DocumentElement;
+   &portalName = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+   &unFolderList = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_FLDR_LIST);
+   &unCrefList = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_CREF_LIST);
+   &UnNode = &xmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NODE_NAME);
+   
+   If None(&portalName) Or
+         None(&unFolderList) Or
+         None(&UnNode) Then
+      Return;
+   End-If;
+   
+   Local number &nDispMode = 0;
+   Local number &nDeviceType = 0;
+   Local string &cookies = &pRequest.IBInfo.IBConnectorInfo.Cookies;
+   
+   If (&cookies <> "") Then
+      /* remove the cookie name out */
+      Local array of string &cookieData = Split(&cookies, "=");
+      If (&cookieData.Len = 2) Then
+         Local array of string &splitCookie = Split(&cookieData [2], ",");
+         &nDispMode = Value(LTrim(&splitCookie [1]));
+         &nDeviceType = Value(LTrim(&splitCookie [2]));
+      End-If;
+   End-If;
+   
+   /* Set the CN properties */
+   rem    setCNProp(&nDispMode, &nDeviceType, True);
+   
+   &pXmlDocRes = getUnFolders(&unFolderList, &unCrefList, &UnNode, &portalName, &pXmlDocRes);
+   
+   /* Reset the CN properties */
+   rem   setCNProp(&nDispMode, &nDeviceType, False);
+   
+end-method;
+

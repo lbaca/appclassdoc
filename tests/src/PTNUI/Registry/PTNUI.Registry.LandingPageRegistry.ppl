@@ -1,0 +1,123 @@
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+import PTNUI:Model:Tile;
+import PTNUI:Registry:NUIRegistry;
+
+class LandingPageRegistry extends PTNUI:Registry:NUIRegistry
+   method LoadUserTiles(&portal As ApiObject, &lp As PTNUI:Model:LandingPage);
+   method LoadSystemTiles(&portal As ApiObject, &lp As PTNUI:Model:LandingPage);
+   method SaveUserTiles(&portal As ApiObject, &lp As PTNUI:Model:LandingPage);
+   
+   method InitializeModels(&lpSys As PTNUI:Model:LandingPage, &lpUser As PTNUI:Model:LandingPage);
+end-class;
+
+Declare Function CreateUserLandingTab PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function PortalAPIError PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function PortalOpen PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+
+method LoadUserTiles
+   /+ &portal as ApiObject, +/
+   /+ &lp as PTNUI:Model:LandingPage +/
+   
+   Local string &nodeName = %This.getPortalHostNode(&portal);
+   
+   Local ApiObject &ltds = &portal.LandingTabDefinitions;
+   Local ApiObject &userTabs = &portal.LandingPage.UserTabs;
+   
+   Local ApiObject &lpTiles;
+   Local ApiObject &userTab = &userTabs.first();
+   While &userTab <> Null
+      rem don't load navbar here or non landing page user tabs;
+      If &userTab.TabName = "NAVBAR" Or
+            &userTab.UsageType <> "GRPT" Then
+         &userTab = &userTabs.next();
+         Continue;
+      End-If;
+      Local ApiObject &ltd = &ltds.ItemByName(&userTab.TabName);
+      If &ltd = Null Or
+            &ltd.IsOpDashboard = True Then
+         &userTab = &userTabs.next();
+         Continue;
+      End-If;
+      
+      Local PTNUI:Model:LandingPageTab &lpt = &lp.GetTab(&nodeName, &portal.name, &userTab.TabName);
+      
+      %This.LoadUserTab(&portal, &lpt, &userTab);
+      &userTab = &userTabs.next();
+   End-While;
+end-method;
+
+method LoadSystemTiles
+   /+ &portal as ApiObject, +/
+   /+ &lp as PTNUI:Model:LandingPage +/
+   
+   Local string &nodeName = %This.getPortalHostNode(&portal);
+   
+   Local ApiObject &ltds = &portal.LandingTabDefinitions;
+   Local ApiObject &ltd = &ltds.first();
+   While &ltd <> Null
+      If &ltd.Name = "NAVBAR" Or
+            Find("USERDEFINEDLP", &ltd.Name) = 1 Or
+            &ltd.IsOpDashboard = True Then
+         &ltd = &ltds.next();
+         Continue;
+      End-If;
+      
+      Local PTNUI:Model:LandingPageTab &lpt = &lp.GetTab(&nodeName, &portal.name, &ltd.Name);
+      %This.LoadSystemTab(&portal, &lpt, &ltd);
+      &ltd = &ltds.next();
+   End-While;
+end-method;
+
+method SaveUserTiles
+   /+ &portal as ApiObject, +/
+   /+ &lp as PTNUI:Model:LandingPage +/
+   Local ApiObject &userTabs = &portal.LandingPage.UserTabs;
+   Local ApiObject &ltds = &portal.LandingTabDefinitions;
+   
+   Local array of PTNUI:Model:LandingPageTab &lpt_arr = &lp.GetTabs();
+   Local number &i;
+   Local boolean &deletedTab = False;
+   
+   For &i = 1 To &lpt_arr.Len
+      Local PTNUI:Model:LandingPageTab &lpt = &lpt_arr [&i];
+      
+      If &lpt.MarkedForDelete Then
+         rem delete landing tab;
+         Local ApiObject &tab = &userTabs.ItemByName(&lpt.TabName);
+         If &tab <> Null Then
+            If Not &userTabs.DeleteItem(&lpt.TabName) Then
+               MessageBox(0, "", 95, 10010, "Error deleting tab %1", &lpt.TabName);
+            End-If;
+         End-If;
+         Local Record &rec = CreateRecord(Record.PTNUI_LP_STATE);
+         SQLExec("DELETE FROM PS_PTNUI_LP_STATE WHERE OPRID = :1 AND PORTAL_NAME = :2 AND PORTAL_OBJNAME = :3 AND PORTAL_HOSTNODENAM = :4", %UserId, &lpt.PortalName, &lpt.TabName, &lpt.NodeName);
+         SQLExec("INSERT INTO PS_PTNUI_LP_STATE(OPRID, PORTAL_NAME, PORTAL_OBJNAME, PORTAL_HOSTNODENAM, PTNUI_LP_ACTIVE) VALUES (:1, :2, :3, :4, :5)", %UserId, &lpt.PortalName, &lpt.TabName, &lpt.NodeName, "N");
+         SQLExec("DELETE FROM %Table(PT_PORTAL_PINTO) WHERE OPRID = :1 AND PORTAL_NAME = :2 AND PORTAL_OBJNAME = :3 ", %UserId, &lpt.PortalName, &lpt.TabName);
+         
+         &deletedTab = True;
+      Else
+         If &lpt.IsChanged Then
+            %This.SaveUserTab(&portal, &lpt);
+         End-If;
+      End-If;
+   End-For;
+   
+   If Not (&portal.LandingPage.save()) Then
+      MessageBox(0, "", 95, 10011, "Error saving landing page");
+   End-If;
+   
+   rem Error (&portal.LandingPage.UserTabs.itembyname("DEFAULT_LP").selectedpagelets.count);
+end-method;
+
+method InitializeModels
+   /+ &lpSys as PTNUI:Model:LandingPage, +/
+   /+ &lpUser as PTNUI:Model:LandingPage +/
+   /+ Extends/implements PTNUI:Registry:NUIRegistry.InitializeModels +/
+   Local ApiObject &portal = PortalOpen();
+   %This.LoadUserTiles(&portal, &lpUser);
+   %This.LoadSystemTiles(&portal, &lpSys);
+   &lpUser.MergeSystemData(&lpSys);
+   &portal.close();
+end-method;
+

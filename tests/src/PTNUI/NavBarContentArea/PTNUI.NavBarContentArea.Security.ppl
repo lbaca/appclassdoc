@@ -1,0 +1,38 @@
+class Security
+   /* properties */
+   /* property any Value get set; */ /** Data Value for the widget. **/
+   method Security(&elementName As string);
+   property string getSSID get;
+   property boolean sidPassTest get;
+private
+   instance string &inst_elementIdAndName;
+end-class;
+
+
+Global string &g_sPTNBSSID;
+
+/** Constructor
+  * 
+**/
+method Security
+   /+ &elementName as String +/
+   &inst_elementIdAndName = &elementName;
+end-method;
+
+get getSSID
+   /+ Returns String +/
+   If &g_sPTNBSSID = "" Then
+      &g_sPTNBSSID = Hash(GetJavaClass("java.util.UUID").randomUUID().toString());
+   End-If;
+   Return &g_sPTNBSSID;
+end-get;
+
+get sidPassTest
+   /+ Returns Boolean +/
+   If Not &g_sPTNBSSID = "" And
+         %Request.GetParameter(&inst_elementIdAndName) = &g_sPTNBSSID Then
+      Return True;
+   End-If;
+   Return False;
+end-get;
+

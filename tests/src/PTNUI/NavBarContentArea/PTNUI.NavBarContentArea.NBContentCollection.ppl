@@ -1,0 +1,84 @@
+import PTNUI:NavBarContentArea:NBContent;
+
+class NBContentCollection
+   method NBContentCollection();
+   
+   method DeleteItem(&name As string);
+   method InsertItem(&nbContent As PTNUI:NavBarContentArea:NBContent);
+   method InsertItemAtStart(&nbContent As PTNUI:NavBarContentArea:NBContent);
+   
+   method First() Returns PTNUI:NavBarContentArea:NBContent;
+   method Next() Returns PTNUI:NavBarContentArea:NBContent;
+   
+   method GetNBContent(&row As number) Returns PTNUI:NavBarContentArea:NBContent;
+   method RowClicked(&content As PTNUI:NavBarContentArea:NBContent);
+private
+   
+   instance array of PTNUI:NavBarContentArea:NBContent &nbContentArray;
+   instance number &curPos;
+end-class;
+
+method NBContentCollection
+   &curPos = 0;
+   &nbContentArray = CreateArrayRept(create PTNUI:NavBarContentArea:NBContent("", "", ""), 0);
+end-method;
+
+method DeleteItem
+   /+ &name as String +/
+   Local PTNUI:NavBarContentArea:NBContent &nbContent = %This.First();
+   Local number &pos = 1;
+   While &nbContent <> Null
+      If &nbContent.getName() = &name Then
+         &nbContentArray.Replace(&pos, 1);
+         Return;
+      End-If;
+      &pos = &pos + 1;
+      &nbContent = %This.Next();
+   End-While;
+   
+end-method;
+
+method InsertItem
+   /+ &nbContent as PTNUI:NavBarContentArea:NBContent +/
+   &nbContentArray.Push(&nbContent);
+end-method;
+
+method InsertItemAtStart
+   /+ &nbContent as PTNUI:NavBarContentArea:NBContent +/
+   &nbContentArray.Unshift(&nbContent);
+end-method;
+
+method GetNBContent
+   /+ &row as Number +/
+   /+ Returns PTNUI:NavBarContentArea:NBContent +/
+   If &row = 0 Or
+         &row > &nbContentArray.Len Then
+      Return Null;
+   End-If;
+   Return &nbContentArray [&row];
+end-method;
+
+method First
+   /+ Returns PTNUI:NavBarContentArea:NBContent +/
+   &curPos = 1;
+   Return %This.GetNBContent(&curPos);
+end-method;
+
+method Next
+   /+ Returns PTNUI:NavBarContentArea:NBContent +/
+   &curPos = &curPos + 1;
+   Return %This.GetNBContent(&curPos);
+end-method;
+
+method RowClicked
+   /+ &content as PTNUI:NavBarContentArea:NBContent +/
+   If &content <> Null Then
+      Local string &val = &content.getUrl();
+      If Find("http://", &val) <> 1 Then
+         Error ("Unknown action on clicked! " | &val);
+      Else
+         ViewURL(&val);
+      End-If;
+   End-If;
+end-method;
+

@@ -1,0 +1,280 @@
+/* Landing Page
+Instantiate this class when component loads.  use it as a component variable;
+*/
+import PTNUI:Model:LandingPageTab;
+import PTNUI:Model:Tile;
+
+class LandingPage
+   method LandingPage();
+   
+   method AddTab(&lpt As PTNUI:Model:LandingPageTab);
+   rem method AddTile(&portal As ApiObject, &tabName As string, &tileName As string, &pos As number);
+   
+   method GenerateTabId(&pNodeName As string, &pPortalName As string, &pTabName As string) Returns string;
+   method FindTabById(&pTabId As string) Returns PTNUI:Model:LandingPageTab;
+   
+   method GetTab(&nodeName As string, &portalName As string, &tabName As string) Returns PTNUI:Model:LandingPageTab;
+   method GetTabs() Returns array of PTNUI:Model:LandingPageTab;
+   method TabExists(&nodeName As string, &portalName As string, &tabName As string) Returns boolean;
+   
+   method GetTileById(&tileId As string) Returns PTNUI:Model:Tile;
+   
+   method MergeSystemData(&lpSys As PTNUI:Model:LandingPage);
+   method GetSFFLP() Returns PTNUI:Model:LandingPage;
+   
+   method debug();
+   
+   method setActiveTab(&pTabId As string);
+   method getActiveTab() Returns PTNUI:Model:LandingPageTab;
+   method isActiveTab(&pTab As PTNUI:Model:LandingPageTab) Returns boolean;
+   
+   property string ActiveTab get;
+   property string ActiveTabId get;
+   
+   
+private
+   instance array of PTNUI:Model:LandingPageTab &m_tabs;
+   
+   instance PTNUI:Model:LandingPageTab &activeTab_inst;
+   
+   method InitPR() Returns ApiObject;
+end-class;
+
+method LandingPage
+   Local PTNUI:Model:LandingPageTab &tab;
+   &m_tabs = CreateArrayRept(&tab, 0);
+   &activeTab_inst = Null;
+end-method;
+
+method InitPR
+   /+ Returns ApiObject +/
+   Local ApiObject &Portal = %Session.GetPortalRegistry();
+   If Not &Portal.Open(%Portal) Then
+      MessageBox(0, "", 95, 307, "Unable to open portal.  PortalName = %1", %Portal);
+      Return Null;
+   End-If;
+   Return &Portal;
+end-method;
+
+
+method GenerateTabId
+   /+ &pNodeName as String, +/
+   /+ &pPortalName as String, +/
+   /+ &pTabName as String +/
+   /+ Returns String +/
+   
+   Local string &nodeName, &portalName, &tabName, &tabId;
+   
+   &nodeName = &pNodeName;
+   If None(&nodeName) Then
+      &nodeName = %Node;
+   End-If;
+   If None(&nodeName) Then
+      &nodeName = %LocalNode;
+   End-If;
+   
+   &portalName = &pPortalName;
+   If None(&portalName) Then
+      &portalName = %Portal;
+   End-If;
+   
+   &tabName = &pTabName;
+   
+   &tabId = &nodeName | "." | &portalName | "." | &tabName;
+   
+   Return &tabId;
+   
+end-method;
+
+method FindTabById
+   /+ &pTabId as String +/
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   
+   Local integer &i;
+   Local string &tabId;
+   Local array of string &parts;
+   
+   &parts = Split(&pTabId, ".");
+   
+   If (&parts.Len = 3) Then
+      &tabId = &pTabId;
+   Else
+      &tabId = %This.GenerateTabId("", "", &pTabId);
+   End-If;
+   
+   For &i = 1 To &m_tabs.Len
+      If (&m_tabs [&i].equalsById(&tabId)) Then
+         Return &m_tabs [&i];
+      End-If;
+   End-For;
+   
+   Return Null;
+   
+end-method;
+
+
+method GetTab
+   /+ &nodeName as String, +/
+   /+ &portalName as String, +/
+   /+ &tabName as String +/
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   Local number &i;
+   Local string &tabId = %This.GenerateTabId(&nodeName, &portalName, &tabName);
+   For &i = 1 To &m_tabs.Len
+      If (&m_tabs [&i].equalsById(&tabId)) Then
+         Return &m_tabs [&i];
+      End-If;
+   End-For;
+   
+   /* create new tab */
+   Local PTNUI:Model:LandingPageTab &lpt = create PTNUI:Model:LandingPageTab(&nodeName, &portalName, &tabName);
+   &m_tabs.Push(&lpt);
+   Return &lpt;
+end-method;
+
+method TabExists
+   /+ &nodeName as String, +/
+   /+ &portalName as String, +/
+   /+ &tabName as String +/
+   /+ Returns Boolean +/
+   Local number &i;
+   Local string &tabId = %This.GenerateTabId(&nodeName, &portalName, &tabName);
+   For &i = 1 To &m_tabs.Len
+      If (&m_tabs [&i].equalsById(&tabId)) Then
+         Return True;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method GetTileById
+   /+ &tileId as String +/
+   /+ Returns PTNUI:Model:Tile +/
+   Local number &i, &j;
+   For &i = 1 To &m_tabs.Len
+      Local PTNUI:Model:LandingPageTab &tab = &m_tabs [&i];
+      Local PTNUI:Model:Tile &tile = &tab.GetTileByid(&tileId);
+      If &tile <> Null Then
+         Return &tile;
+      End-If;
+   End-For;
+   Return Null;
+end-method;
+
+method setActiveTab
+   /+ &pTabId as String +/
+   &activeTab_inst = %This.FindTabById(&pTabId);
+end-method;
+
+method getActiveTab
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   Return &activeTab_inst;
+end-method;
+
+method isActiveTab
+   /+ &pTab as PTNUI:Model:LandingPageTab +/
+   /+ Returns Boolean +/
+   
+   If (&activeTab_inst <> Null) Then
+      If (&activeTab_inst.ID = &pTab.ID) Then
+         Return True;
+      End-If;
+   End-If;
+   
+   Return False;
+   
+end-method;
+
+get ActiveTab
+   /+ Returns String +/
+   
+   Local string &tabName = "";
+   
+   If (&activeTab_inst <> Null) Then
+      &tabName = &activeTab_inst.TabName;
+   End-If;
+   
+   Return &tabName;
+   
+end-get;
+
+get ActiveTabId
+   /+ Returns String +/
+   
+   Local string &tabName = "";
+   
+   If (&activeTab_inst <> Null) Then
+      &tabName = &activeTab_inst.ID;
+   End-If;
+   
+   Return &tabName;
+   
+end-get;
+
+method AddTab
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   &m_tabs.Push(&lpt);
+end-method;
+
+/*
+method AddTile
+   /+ &portal as ApiObject, +/
+   /+ &tabName as String, +/
+   /+ &tileName as String, +/
+   /+ &pos as Number +/
+   Local PTNUI:Model:LandingPageTab &tab = %This.GetTab(&tabName);
+   &tab.AddUserTileFromReg(&portal, &tileName);
+end-method;
+*/
+method GetTabs
+   /+ Returns Array of PTNUI:Model:LandingPageTab +/
+   Return &m_tabs;
+end-method;
+
+method MergeSystemData
+   /+ &lpSys as PTNUI:Model:LandingPage +/
+   
+   Local number &i;
+   
+   Local PTNUI:Model:LandingPageTab &lpt, &lptSys;
+   Local array of PTNUI:Model:LandingPageTab &sysTabs;
+   
+   For &i = 1 To &m_tabs.Len
+      &lpt = &m_tabs [&i];
+      If &lpSys.TabExists(&lpt.NodeName, &lpt.PortalName, &lpt.TabName) Then
+         &lptSys = &lpSys.GetTab(&lpt.NodeName, &lpt.PortalName, &lpt.TabName);
+         &lpt.MergeSystemData(&lptSys);
+      End-If;
+   End-For;
+   
+   &sysTabs = &lpSys.GetTabs();
+   For &i = 1 To &sysTabs.Len
+      &lptSys = &sysTabs [&i];
+      If Not %This.TabExists(&lptSys.NodeName, &lptSys.PortalName, &lptSys.TabName) Then
+         &m_tabs.Push(&lptSys);
+      End-If;
+   End-For;
+end-method;
+
+method GetSFFLP
+   /+ Returns PTNUI:Model:LandingPage +/
+   Local PTNUI:Model:LandingPage &sffLP = create PTNUI:Model:LandingPage();
+   
+   Local integer &i;
+   For &i = 1 To &m_tabs.Len
+      If &m_tabs [&i].hasSFFTiles() Then
+         &sffLP.AddTab(&m_tabs [&i].clone());
+      End-If;
+   End-For;
+   Return &sffLP;
+end-method;
+
+method debug
+   Local string &outStr;
+   Local integer &i;
+   For &i = 1 To &m_tabs.Len
+      &m_tabs [&i].debug();
+   End-For;
+   rem AddOnLoadScript("alert('Tabs: " | &outStr | " ')");
+end-method;
+

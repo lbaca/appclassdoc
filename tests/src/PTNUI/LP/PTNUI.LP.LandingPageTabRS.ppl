@@ -1,0 +1,738 @@
+import PTNUI:Model:Tile;
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+import PTNUI:HP:UserHPPanelRS;
+import PTNUI:LP:LandingPageRS;
+
+class LandingPageTabRS
+   method LandingPageTabRS(&parentRow As Row, &tabName As string, &rsName As string, &recName As string);
+   
+   method initRowset(&tab As PTNUI:Model:LandingPageTab);
+   method AddTile(&tile As PTNUI:Model:Tile);
+   method AddTileFromRS(&row As Row, &pos As number);
+   method removeTile(&rowNum As number);
+   method reorderTile(&fromRow As number, &toRow As number);
+   method tileExists(&tileId As string) Returns boolean;
+   method IsTileHidden(&tileId As string) Returns boolean;
+   method UnhideTile(&tileId As string);
+   
+   method startPersonalization();
+   method finishPersonalization();
+   method titleVisible(&visible As boolean);
+   method IncSeqNum(&startSeqNum As number);
+   
+   method createModel() Returns PTNUI:Model:LandingPageTab;
+   
+   property string Name get;
+   property string Label;
+   property boolean IsLayoutLocked;
+   property boolean IsRenameable;
+   property boolean MarkedForDelete;
+   property boolean IsChanged;
+   property number SeqNum;
+   
+protected
+   method setActionLink(&rec As Record);
+   method setTile(&rec As Record, &tile As PTNUI:Model:Tile, &lpt As PTNUI:Model:LandingPageTab);
+   
+   property boolean isPersonalizationMode_inst;
+   
+private
+   instance string &m_tabName;
+   instance string &m_rsName;
+   instance string &m_recName;
+   instance Row &m_parentRow;
+   instance Rowset &m_rs;
+   
+   instance number &m_maxTileSeqNum;
+   instance boolean &useSizeStyle;
+   instance boolean &tileIsImage;
+end-class;
+
+Declare Function PSURLtoNewWin PeopleCode FUNCLIB_PTPP.PTPP_HYPERLINK FieldFormula;
+Declare Function FindLandingPageTabById PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+Declare Function FindLandingPageTabTileById PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+Declare Function FindTileById PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+rem Declare Function generateImageUrl PeopleCode WEBLIB_PTBR.ISCRIPT1 FieldFormula;
+Declare Function generateTileImageUrl PeopleCode WEBLIB_PTBR.ISCRIPT1 FieldFormula;
+Declare Function GetCurDeviceTileWidth PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function GetCurDeviceTileHeight PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function IsRemotePIANode PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+Component PTNUI:HP:UserHPPanelRS &uhp2RS;
+Component PTNUI:Model:LandingPage &lp;
+Component PTNUI:LP:LandingPageRS &lpRS;
+
+method LandingPageTabRS
+   /+ &parentRow as Row, +/
+   /+ &tabName as String, +/
+   /+ &rsName as String, +/
+   /+ &recName as String +/
+   &m_tabName = &tabName;
+   &m_rsName = &rsName;
+   &m_recName = &recName;
+   
+   &m_parentRow = &parentRow;
+   If &m_parentRow <> Null Then
+      &m_rs = &m_parentRow.GetRowset(@("Scroll." | &m_rsName));
+   End-If;
+   
+   &useSizeStyle = True;
+   &tileIsImage = True;
+   &MarkedForDelete = False;
+   &m_maxTileSeqNum = 0;
+   &IsChanged = False;
+end-method;
+
+get Name
+   /+ Returns String +/
+   Return &m_tabName;
+end-get;
+
+method setActionLink
+   /+ &rec as Record +/
+   
+   If &isPersonalizationMode_inst Then
+      &rec.PTNUI_ACTION_LINK.LabelImage = Image.PTNUI_SELMOVE_BTN;
+      &rec.PTNUI_ACTION_LINK.HoverText = MsgGetText(95, 10029, "MNF-Move or Copy Tile") | " " | &rec.TITLE.Value;
+      &rec.PTNUI_ACTION_LINK.Label = MsgGetText(95, 10029, "MNF-Move or Copy Tile") | " " | &rec.TITLE.Value;
+   Else
+      If &rec.GROUPLET_ALTHEIGHT.Value <> 0 And
+            &rec.GROUPLET_ALTWIDTH.Value <> 0 Then
+         If (&rec.GROUPLET_ALTHEIGHT.Value * &rec.GROUPLET_ALTWIDTH.Value < &rec.GROUPLET_HEIGHT.Value * &rec.GROUPLET_HEIGHT.Value) Then
+            &rec.PTNUI_RESIZE_BTN.LabelImage = Image.PTNUI_TOGGLE_TILE_COLLAPSE;
+            &rec.PTNUI_RESIZE_BTN.FreeFormStyleName = "expanded";
+         Else
+            &rec.PTNUI_RESIZE_BTN.LabelImage = Image.PTNUI_TOGGLE_TILE_EXPAND;
+            &rec.PTNUI_RESIZE_BTN.FreeFormStyleName = "collapsed";
+         End-If;
+         &rec.GROUPLET.FreeFormStyleName = &rec.GROUPLET.FreeFormStyleName | " ps_tile-resizeable";
+         &rec.PTNUI_RESIZE_BTN.HoverText = "Resize" | " " | &rec.TITLE.Value;
+         &rec.PTNUI_RESIZE_BTN.Label = "Resize" | " " | &rec.TITLE.Value;
+      End-If;
+      
+      Local string &initSize = "cw='" | &rec.GROUPLET_WIDTH.Value | "' ch='" | &rec.GROUPLET_HEIGHT.Value | "'";
+      Local string &altSize = "ew='" | &rec.GROUPLET_ALTWIDTH.Value | "' eh='" | &rec.GROUPLET_ALTHEIGHT.Value | "'";
+      &rec.PTNUI_RESIZE_BTN.JavaScriptEvents = "onclick='javascript:lpResizeTile(this);return false;' " | &initSize | " " | &altSize;
+      &rec.PTNUI_RESIZE_BTN.Value = "javascript:void(0);";
+      &rec.PTNUI_RESIZE_BTN.HoverText = "Resize" | " " | &rec.TITLE.Value;
+      &rec.PTNUI_RESIZE_BTN.Label = "Resize" | " " | &rec.TITLE.Value;
+   End-If;
+end-method;
+
+method setTile
+   /+ &rec as Record, +/
+   /+ &tile as PTNUI:Model:Tile, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   
+   Local string &imageName, &imageURL, &remoteImageURL, &modalOptions;
+   
+   &rec.PTNUI_TILE_ID.Value = &tile.ID;
+   &rec.MSGNODENAME.Value = &tile.NodeName;
+   &rec.PORTAL_NAME.Value = &tile.PortalName;
+   
+   &rec.PORTAL_SEQ_NUM.Value = &tile.SeqNum;
+   If &lpt <> Null Then
+      If Not &lpt.HasUserData Then
+         &rec.PORTAL_SEQ_NUM.Value = &tile.CRefSeqNum;
+      End-If;
+   End-If;
+   
+   &rec.TITLE.Value = &tile.Label;
+   &rec.PORTAL_OBJNAME.Value = &tile.TileName;
+   rem &rec.LP_GRP_URL.Value = &cref.AbsoluteContentURL;
+   &rec.LP_GRP_URL.Value = &tile.GltContentUrl;
+   If &tile.UsePSC Then
+      &rec.LP_GRP_ACTN_URL.Value = &tile.GltContentActionUrl;
+   Else
+      &rec.LP_GRP_ACTN_URL.Value = &tile.GltPortalActionUrl;
+   End-If;
+   
+   If IsRemotePIANode(&tile.NodeName) Then
+      Local number &j;
+      
+      &j = Find("/h/?tab=", &rec.LP_GRP_ACTN_URL.Value);
+      If (&j > 0) Then
+         Local string &strURLDummy;
+         Local number &qryStringPos;
+         Local string &strHPTabNameDummy = "REMOTEUNIFIEDDASHBOARD";
+         
+         If Find("tab=REMOTEUNIFIEDDASHBOARD", &rec.LP_GRP_ACTN_URL.Value) = 0 Then
+            &strURLDummy = GenerateHomepagePortalURL(&tile.PortalName, &tile.NodeName, &strHPTabNameDummy);
+            &qryStringPos = Find("?", &rec.LP_GRP_ACTN_URL.Value);
+            If &qryStringPos > 0 Then
+               &rec.LP_GRP_ACTN_URL.Value = &strURLDummy | "&remotedburl=" | EncodeURLForQueryString(&rec.LP_GRP_ACTN_URL.Value) | "&unifieddashboard=y";
+            Else
+               &rec.LP_GRP_ACTN_URL.Value = &strURLDummy | "?remotedburl=" | EncodeURLForQueryString(&rec.LP_GRP_ACTN_URL.Value) | "&unifieddashboard=y";
+            End-If;
+         End-If;
+      End-If;
+   End-If;
+   
+   If %Component = "PT_FLDASHBOARD" Then
+      If Find("?", &rec.LP_GRP_ACTN_URL.Value) = 0 Then
+         &rec.LP_GRP_ACTN_URL.Value = &rec.LP_GRP_ACTN_URL.Value | "?";
+      End-If;
+      
+      &rec.LP_GRP_ACTN_URL.Value = &rec.LP_GRP_ACTN_URL.Value | "&" | &lpRS.ContextParams;
+   End-If;
+   
+   &rec.GROUPLET_ID.Value = &tile.GltId;
+   &rec.PORTAL_LAYOUTBEHAV.Value = &tile.LayoutBehavior;
+   
+   &rec.GROUPLET_WIDTH.Value = &tile.Width;
+   &rec.GROUPLET_HEIGHT.Value = &tile.Height;
+   &rec.GROUPLET_ALTHEIGHT.Value = &tile.AltHeight;
+   &rec.GROUPLET_ALTWIDTH.Value = &tile.AltWidth;
+   
+   &imageName = &tile.GltImageName;
+   &remoteImageURL = "";
+   If All(&imageName) Then
+      &imageURL = %Response.GetImageURL(&imageName);
+      If None(&imageURL) Then
+         If &tile.GltURLType <> "NONE" Then
+            &imageName = Image.PTNUI_DEFAULT_ICN;
+         Else
+            &imageName = Image.PT_PORTAL_CLEAR_DOT;
+         End-If;
+         If (&tile.IsRemote) Then
+            &remoteImageURL = generateTileImageUrl(&tile.RemoteNodeName, &tile.RemotePortalName, &tile.GltImageName, &tile.Label);
+            rem &remoteImageURL = generateImageUrl(&tile.RemoteNodeName, &tile.RemotePortalName, &tile.GltImageName);
+         Else
+            &remoteImageURL = generateTileImageUrl(&tile.NodeName, &tile.PortalName, &tile.GltImageName, &tile.Label);
+            rem &remoteImageURL = generateImageUrl(&tile.NodeName, &tile.PortalName, &tile.GltImageName);
+         End-If;
+      End-If;
+   Else
+      &imageName = Image.PTNUI_DEFAULT_ICN;
+   End-If;
+   &rec.IMAGE_NAME.Value = &imageName;
+   
+   Local number &curWidth = GetCurDeviceTileWidth(&tile.Width);
+   Local number &curHeight = GetCurDeviceTileHeight(&tile.Height);
+   
+   If &useSizeStyle Then
+      If &tile.IsAutoSize Then
+         &rec.ParentRow.Style = "nuitile rsz_w1 rsz_h1"; /*Autosize, then set to min for now */
+      Else
+         &rec.ParentRow.Style = "nuitile rsz_w" | &curWidth | " rsz_h" | &curHeight; /* default */
+      End-If;
+   End-If;
+   
+   /* set role as link instead of button */
+   &rec.GROUPLET.IsGroupletAsLink = True;
+   
+   If &useSizeStyle Then
+      &rec.GROUPLET.FreeFormStyleName = "";
+   End-If;
+   
+   rem if the grouplet is targeted to navbar, just make it replace the landing page when opened;
+   If &tile.DisplayIn = 3 Then
+      &tile.DisplayIn = 0;
+   End-If;
+   
+   &rec.GROUPLET.SetGroupletDisplayIn(&tile.DisplayIn);
+   Local string &action_url = &rec.LP_GRP_ACTN_URL.Value;
+   <*If (&tile.DisplayIn = 1 Or
+         &tile.DisplayIn = 2) And*>
+   If &tile.URLType <> "USCR" Then
+      &action_url = PSURLtoNewWin(&rec.LP_GRP_ACTN_URL.Value);
+   End-If;
+   If Not &tile.IsHotspotEnabled Then
+      &action_url = "";
+   End-If;
+   &rec.LP_GRP_ACTN_URL.Value = &action_url;
+   &rec.GROUPLET.SetGroupletActionUrl(&action_url);
+   If &tile.DisplayIn = 2 Then /* display in domal */
+      &modalOptions = &tile.DisplayModalParams;
+      If (&tile.DefaultModalTitle <> "") Then
+         &modalOptions = "sTitle@" | &tile.DefaultModalTitle | ";" | &modalOptions;
+      End-If;
+      &rec.GROUPLET.SetGroupletMOptions(&modalOptions);
+   End-If;
+   
+   If (&tile.GltType = 3) Then
+      &rec.GROUPLET.SetGroupletType(3);
+      If (&tile.IsAutoSize) Then /*VB*/
+         &rec.GROUPLET.SetGroupletType(5);
+      End-If;
+   Else
+      If (&tile.GltType <> 4) Then
+         &rec.GROUPLET.SetGroupletType(1); /* 1 with style, 2 no style &tile.GltType */
+      Else
+         If (&tile.IsAutoSize) Then /*VB*/
+            &rec.GROUPLET.SetGroupletType(6);
+         End-If;
+      End-If;
+   End-If;
+   &rec.GROUPLET.SetGroupletImage(&rec.IMAGE_NAME.Value);
+   
+   If &tile.GltURLType <> "NONE" Then
+      If Find("?", &rec.LP_GRP_URL.Value) = 0 Then
+         &rec.LP_GRP_URL.Value = &rec.LP_GRP_URL.Value | "?";
+      End-If;
+      
+      If (&tile.GltURLType = "UEXT") Then
+         /* Override the Grouplet Type when External Content */
+         If (&tile.IsAutoSize) Then
+            &rec.GROUPLET.SetGroupletType(6);
+         Else
+            &rec.GROUPLET.SetGroupletType(4);
+         End-If;
+         /* add &psqry=1 as boundary to where the peoplesoft added param starts. */
+         /* IN PT_PAGESCRIPT_FMODE.js, it will extract the external URL from start index:0 up to index just before &psqry only */
+         &rec.LP_GRP_URL.Value = &rec.LP_GRP_URL.Value | "&psqry=1";
+      End-If;
+      If (&tile.GltType < 3 And
+            &tile.IsAutoSize) Then
+         &rec.LP_GRP_URL.Value = &rec.LP_GRP_URL.Value | "&tASz=1";
+      End-If;
+      
+      &rec.LP_GRP_URL.Value = &rec.LP_GRP_URL.Value | "&tW=" | &curWidth | "&tH=" | &curHeight;
+      If %Component = "PT_FLDASHBOARD" Then
+         &rec.LP_GRP_URL.Value = &rec.LP_GRP_URL.Value | "&" | &lpRS.ContextParams;
+      End-If;
+      
+      Local string &gUrl = &rec.LP_GRP_URL.Value;
+      If &tile.GltURLType <> "USCR" Then
+         &gUrl = PSURLtoNewWin(&gUrl);
+      End-If;
+      &rec.LP_GRP_URL.Value = &gUrl;
+      &rec.GROUPLET.SetGroupletUrl(&gUrl);
+      Local string &access = GetUserOption("PPTL", "TILETIMER");
+      If &access = "N" Then
+         &rec.GROUPLET.SetGroupletTimer(0);
+      Else
+         &rec.GROUPLET.SetGroupletTimer(&tile.GltTimer);
+      End-If
+   Else
+      If All(&remoteImageURL) Then
+         &rec.LP_GRP_URL.Value = &remoteImageURL;
+         &rec.GROUPLET.SetGroupletUrl(&remoteImageURL);
+      Else
+         &rec.ParentRow.Style = &rec.ParentRow.Style | " nuidflt";
+      End-If;
+   End-If;
+   
+   rem turn off dnd when in accessibility mode or in small form factor;
+   If &lpRS.IsAccessibilityMode Or
+         %Request.BrowserDeviceFormFactor = %FormFactor_Small Then
+      &rec.GROUPLET.Draggable = False;
+      &rec.GROUPLET.Droppable = False;
+   End-If;
+   
+   &rec.GROUPLET.SetGroupletEventMsg(&tile.GltEventName);
+   &rec.GROUPLET.SetGroupletID(&rec.GROUPLET_ID.Value);
+   &rec.GROUPLET.Label = EscapeHTML(&rec.TITLE.Value);
+   &rec.PTNUI_CLOSE_BTN.FreeFormStyleName = "psc_hidden";
+   &rec.PTNUI_CLOSE_BTN.HoverText = MsgGetText(190, 12, "MNF-Delete") | " " | &rec.TITLE.Value;
+   &rec.PTNUI_CLOSE_BTN.Label = MsgGetText(190, 12, "MNF-Delete") | " " | &rec.TITLE.Value;
+   
+   rem &rec.GROUPLET.Label = &rec.TITLE.Value | &tile.RowNum | "," | &tile.ColNum;
+   &rec.PORTAL_SEQ_NUM.FreeFormStyleName = "tile-seqnum";
+   
+   If Not &tile.IsRemoveable Or
+         (&lpRS.bPersonalizeAuth = False) Then
+      If &rec.PORTAL_LAYOUTBEHAV.Value = "1FIX" Then
+         &rec.PTNUI_CLOSE_BTN.LabelImage = Image.PTNUI_LOCK_ICN;
+         &rec.PTNUI_CLOSE_BTN.DisplayOnly = True;
+         &rec.PTNUI_CLOSE_BTN.HoverText = MsgGetText(95, 10028, "MNF-Locked") | " " | &rec.TITLE.Value;
+         &rec.PTNUI_CLOSE_BTN.Label = MsgGetText(95, 10028, "MNF-Locked") | " " | &rec.TITLE.Value;
+      Else
+         &rec.PTNUI_CLOSE_BTN.FreeFormStyleName = "psc_hidden";
+      End-If;
+      
+      If &lpRS.bPersonalizeAuth = False Or
+            &rec.PORTAL_LAYOUTBEHAV.Value = "1FIX" Then
+         &rec.GROUPLET.Draggable = False;
+         &rec.GROUPLET.Droppable = False;
+      End-If;
+   End-If;
+   
+   If &tile.SeqNum > &m_maxTileSeqNum Then
+      &m_maxTileSeqNum = &tile.SeqNum;
+   End-If;
+   
+   %This.setActionLink(&rec);
+   
+   /* Additional process when in personalization mode */
+   If &isPersonalizationMode_inst Then
+      &rec.PTNUI_CLOSE_BTN.FreeFormStyleName = "";
+      &rec.PTNUI_CLOSE_BTN.Visible = True;
+      &rec.PTNUI_CLOSE_BTN.Enabled = True;
+      &rec.PTNUI_RESIZE_BTN.FreeFormStyleName = "psc_hidden";
+      If &uhp2RS.Length() > 1 Then;
+         &rec.PTNUI_ACTION_LINK.FreeFormStyleName = "";
+      Else
+         &rec.PTNUI_ACTION_LINK.FreeFormStyleName = "psc_hidden";
+      End-If;
+      &rec.GROUPLET.SetGroupletUrl("");
+      &rec.GROUPLET.SetGroupletActionUrl("");
+      If &rec.PTNUI_ACTION_LINK.DisplayOnly = False Then
+         &rec.GROUPLET.Draggable = True;
+         &rec.GROUPLET.Droppable = True;
+      End-If;
+      If &rec.PORTAL_LAYOUTBEHAV.Value = "1FIX" Then
+         &rec.GROUPLET.Draggable = False;
+         &rec.GROUPLET.Droppable = False;
+      End-If;
+   End-If;
+end-method;
+
+method initRowset
+   /+ &tab as PTNUI:Model:LandingPageTab +/
+   &IsLayoutLocked = &tab.IsLayoutLocked;
+   &IsRenameable = &tab.IsRenameable;
+   &SeqNum = &tab.SeqNum;
+   
+   rem copy to rowset;
+   Local array of PTNUI:Model:Tile &tiles = &tab.GetTiles();
+   Local number &j;
+   Local number &displayedTiles = 0;
+   &m_rs.Flush();
+   If &tiles.Len = 0 Then
+      &m_rs.HideAllRows();
+   Else
+      Local number &t_idx;
+      For &j = 1 To &tiles.Len
+         If ( Not &tab.HasUserData) And
+               (&tiles [&j].LayoutBehavior = "4OPT") Then
+            /* Ignore optional tiles when there is no personalization data */
+            Continue;
+         End-If;
+         
+         rem check if sff.  skip tile if it's not optimized for sff;
+         If (%Request.BrowserDeviceFormFactor = %FormFactor_Small And
+               &tiles [&j].IsSmallFFOptimized = 0) Then
+            Continue;
+         End-If;
+         
+         If &displayedTiles > 0 Then
+            &m_rs.InsertRow(&m_rs.ActiveRowCount);
+            &t_idx = &m_rs.ActiveRowCount;
+         Else
+            &t_idx = 1;
+         End-If;
+         Local Record &recTile = &m_rs(&t_idx).GetRecord(@("Record." | &m_rsName));
+         
+         %This.setTile(&recTile, &tiles [&j], &tab);
+         &displayedTiles = &displayedTiles + 1;
+      End-For;
+      &m_rs.Sort(PTNUI_LAND_REC.PORTAL_SEQ_NUM, "A");
+      
+      /* reset seqNum */
+      Local number &i;
+      For &i = 1 To &m_rs.ActiveRowCount
+         &m_rs(&i).GetRecord(@("Record." | &m_recName)).PORTAL_SEQ_NUM.Value = &i;
+      End-For;
+      &m_maxTileSeqNum = &m_rs.ActiveRowCount;
+   End-If;
+   
+   &m_parentRow.PTNUI_LAND_WRK.GROUPBOX8.JavaScriptEvents = "style='width: 780px;'";
+   If &displayedTiles = 0 Then
+      &m_maxTileSeqNum = 0;
+      &m_rs.HideAllRows();
+   End-If;
+end-method;
+
+method AddTile
+   /+ &tile as PTNUI:Model:Tile +/
+   
+   If %This.tileExists(&tile.ID) Then
+      If %This.IsTileHidden(&tile.ID) Then
+         %This.UnhideTile(&tile.ID);
+      Else
+         MessageBox(0, "", 95, 10024, "MNF-Tile already exists on %1", MsgGetText(95, 10001, "MNF-Homepage"));
+      End-If;
+      Return;
+   End-If;
+   
+   &tile.SeqNum = &m_maxTileSeqNum + 1;
+   If &m_maxTileSeqNum > 0 Then
+      &m_rs.InsertRow(&m_rs.ActiveRowCount);
+   End-If;
+   &IsChanged = True;
+   
+   Local Record &recTile = &m_rs(&m_rs.ActiveRowCount).GetRecord(@("Record." | &m_rsName));
+   %This.setTile(&recTile, &tile, Null);
+   
+   If &m_rs.ActiveRowCount = 1 Then
+      &m_rs.ShowAllRows();
+   End-If;
+end-method;
+
+method AddTileFromRS
+   /+ &row as Row, +/
+   /+ &pos as Number +/
+   
+   Local Record &rec = &row.GetRecord(1);
+   Local PTNUI:Model:Tile &tile = &lp.GetTileById(&rec.PTNUI_TILE_ID.Value);
+   If &tile = Null Then
+      MessageBox(0, "", 95, 10008, "Existing tile not found. %1", &rec.PTNUI_TILE_ID.Value);
+   End-If;
+   
+   &IsChanged = True;
+   %This.AddTile(&tile);
+end-method;
+
+method removeTile
+   /+ &rowNum as Number +/
+   &m_rs(&rowNum).Style = &m_rs(&rowNum).Style | " nuihidden";
+   &m_rs(&rowNum).GetRecord(@("Record." | &m_recName)).PORTAL_SEQ_NUM.Value = 0;
+   
+   &IsChanged = True;
+end-method;
+
+method reorderTile
+   /+ &fromRow as Number, +/
+   /+ &toRow as Number +/
+   If &fromRow = &toRow Then
+      Return;
+   End-If;
+   
+   &IsChanged = True;
+   
+   Local number &i;
+   Local number &fromSeqNum = &m_rs(&fromRow).GetRecord(@("Record." | &m_recName)).PORTAL_SEQ_NUM.Value;
+   Local number &toSeqNum = &m_rs(&toRow).GetRecord(@("Record." | &m_recName)).PORTAL_SEQ_NUM.Value;
+   
+   Local string &z;
+   Local number &recSeqNum;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      &recSeqNum = &rec.PORTAL_SEQ_NUM.Value;
+      If &recSeqNum = &fromSeqNum Then
+         &rec.PORTAL_SEQ_NUM.Value = &toSeqNum;
+      Else
+         If &fromSeqNum > &toSeqNum Then
+            rem move higher to lower;
+            If &recSeqNum >= &toSeqNum And
+                  &recSeqNum < &fromSeqNum Then
+               &rec.PORTAL_SEQ_NUM.Value = &rec.PORTAL_SEQ_NUM.Value + 1;
+            End-If;
+         Else
+            rem move lower to higher;
+            If &recSeqNum > &fromSeqNum And
+                  &recSeqNum <= &toSeqNum Then
+               &rec.PORTAL_SEQ_NUM.Value = &rec.PORTAL_SEQ_NUM.Value - 1;
+            End-If;
+         End-If;
+      End-If;
+      rem         &z = &z | " " | &rec.PORTAL_SEQ_NUM.Value;
+   End-For;
+   
+   rem Warning (&z);
+   &m_rs.Sort(PTNUI_LAND_REC.PORTAL_SEQ_NUM, "A");
+end-method;
+
+method tileExists
+   /+ &tileId as String +/
+   /+ Returns Boolean +/
+   Local number &i;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      If &rec.PTNUI_TILE_ID.Value = &tileId Then
+         Return True;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method IsTileHidden
+   /+ &tileId as String +/
+   /+ Returns Boolean +/
+   Local number &i;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      If &rec.PTNUI_TILE_ID.Value = &tileId Then
+         Local string &style = &m_rs(&i).Style;
+         If Find("nuihidden", &style) > 0 Then
+            Return True;
+         Else
+            Return False;
+         End-If;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method UnhideTile
+   /+ &tileId as String +/
+   Local number &i;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      If &rec.PTNUI_TILE_ID.Value = &tileId Then
+         Local string &style = &m_rs(&i).Style;
+         Local number &pos = Find("nuihidden", &style);
+         If &pos > 0 Then
+            &m_rs(&i).Style = Substitute(&m_rs(&i).Style, " nuihidden", "");
+            &m_rs(&i).GetRecord(@("Record." | &m_recName)).PORTAL_SEQ_NUM.Value = &i;
+         End-If;
+      End-If;
+   End-For;
+end-method;
+
+method startPersonalization
+   &isPersonalizationMode_inst = True;
+   
+   %This.titleVisible( True);
+   
+   Local number &i;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      %This.setActionLink(&rec);
+      If &uhp2RS.Length() > 1 Then;
+         &rec.PTNUI_ACTION_LINK.FreeFormStyleName = "";
+      End-If;
+      If &lpRS.IsAccessibilityMode And
+            &rec.PORTAL_LAYOUTBEHAV.Value <> "1FIX" Then
+         &rec.GROUPLET.Draggable = True;
+         &rec.GROUPLET.Droppable = True;
+      End-If;
+      
+      &rec.GROUPLET.SetGroupletUrl("");
+      &rec.GROUPLET.SetGroupletActionUrl("");
+      If &rec.PORTAL_LAYOUTBEHAV.Value <> "2REQ" Then
+         &rec.PTNUI_CLOSE_BTN.FreeFormStyleName = "";
+      End-If;
+      &rec.PTNUI_RESIZE_BTN.FreeFormStyleName = "psc_hidden";
+   End-For;
+   
+end-method;
+
+method finishPersonalization
+   &isPersonalizationMode_inst = False;
+   
+   %This.titleVisible( False);
+   If &m_parentRow.PTNUI_LP_PAGE.PTNUI_LP_LABEL.Value <> "" And
+         &Label <> &m_parentRow.PTNUI_LP_PAGE.PTNUI_LP_LABEL.Value Then
+      &IsChanged = True;
+      &Label = &m_parentRow.PTNUI_LP_PAGE.PTNUI_LP_LABEL.Value;
+   End-If;
+   
+   Local number &i;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      %This.setActionLink(&rec);
+      &rec.GROUPLET.SetGroupletUrl(&rec.LP_GRP_URL.Value);
+      &rec.GROUPLET.SetGroupletActionUrl(&rec.LP_GRP_ACTN_URL.Value);
+      If &lpRS.IsAccessibilityMode Then
+         &rec.GROUPLET.Draggable = False;
+         &rec.GROUPLET.Droppable = False;
+      End-If;
+      
+      If &rec.GROUPLET_ALTWIDTH.Value <> 0 And
+            &rec.GROUPLET_ALTWIDTH.Value <> 0 Then
+         &rec.PTNUI_RESIZE_BTN.FreeFormStyleName = "";
+      Else
+         &rec.PTNUI_RESIZE_BTN.FreeFormStyleName = "psc_hidden";
+      End-If;
+      
+      &rec.PTNUI_CLOSE_BTN.FreeFormStyleName = "psc_hidden";
+      &rec.PTNUI_ACTION_LINK.FreeFormStyleName = "psc_hidden";
+   End-For;
+end-method;
+
+method titleVisible
+   /+ &visible as Boolean +/
+   &m_parentRow.PTNUI_LP_PAGE.PTNUI_TILE_ADD.Visible = &visible;
+end-method;
+
+method IncSeqNum
+   /+ &startSeqNum as Number +/
+   Local number &i;
+   For &i = 1 To &m_rs.ActiveRowCount
+      Local Record &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+      If &rec.PORTAL_SEQ_NUM.Value > &startSeqNum Then
+         &rec.PORTAL_SEQ_NUM.Value = &rec.PORTAL_SEQ_NUM.Value + 1;
+      End-If;
+   End-For;
+end-method;
+
+method createModel
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   
+   Local PTNUI:Model:LandingPageTab &lpt;
+   Local integer &i;
+   Local string &tId, &currentPortalName;
+   Local array of string &parts;
+   Local Record &rec;
+   Local PTNUI:Model:Tile &t, &t1;
+   
+   &currentPortalName = %Portal;
+   
+   &lpt = FindLandingPageTabById(&currentPortalName, %This.Name);
+   If All(&lpt) Then
+      &lpt = &lpt.clone();
+   Else
+      /* new tab */
+      &parts = Split(%This.Name, ".");
+      &lpt = create PTNUI:Model:LandingPageTab(&parts [1], &parts [2], &parts [3]);
+   End-If;
+   
+   If (&lpt.IsRenameable) Then
+      &lpt.Label = %This.Label;
+   End-If;
+   
+   &lpt.MarkedForDelete = %This.MarkedForDelete;
+   &lpt.IsChanged = %This.IsChanged;
+   
+   /* need to check if only the sequence # of the landing page changed. */
+   Local number &curSeqNum = &uhp2RS.GetLPSeqNum(%This.Name);
+   If &lpt.SeqNum <> &curSeqNum Then
+      &lpt.SeqNum = &curSeqNum;
+      &lpt.IsChanged = True;
+   End-If;
+   
+   If (&lpt.MarkedForDelete) Then
+      /* Remove all the tiles */
+      &lpt.ResetTiles();
+   Else
+      
+      /* Mark all tiles for delete first */
+      &lpt.MakeAllTilesForDelete();
+      
+      For &i = 1 To &m_rs.ActiveRowCount
+         
+         /* Get the tile id */
+         &rec = &m_rs(&i).GetRecord(@("Record." | &m_recName));
+         &tId = &rec.PTNUI_TILE_ID.Value;
+         
+         /* Existing Tiles? */
+         &t = &lpt.GetTileByid(&tId);
+         If None(&t) Then
+            
+            /* Newly Added? */
+            &t = FindTileById(&currentPortalName, &tId);
+            If None(&t) Then
+               /* Copied from another landing page tab? */
+               &t = FindLandingPageTabTileById(&currentPortalName, &tId);
+               If All(&t) And
+                     (&t.IsRemote) Then
+                  /* Remote tile, can we find the original? */
+                  &t1 = FindTileById(&currentPortalName, &t.RemoteID);
+                  If All(&t1) Then
+                     /* Use the original instead */
+                     &t = &t1;
+                  End-If;
+               End-If;
+            End-If;
+            
+            If All(&t) Then
+               &t = &t.clone();
+               &lpt.AddTile(&t);
+            End-If;
+            
+         End-If;
+         
+         If All(&t) Then
+            &t.MarkedForDelete = False;
+            &t.SetPropertiesFromRec(&rec);
+            rem &lpt.AddUserTileFromRS(&t);
+         End-If;
+      End-For;
+      
+   End-If;
+   Return &lpt;
+end-method;
+

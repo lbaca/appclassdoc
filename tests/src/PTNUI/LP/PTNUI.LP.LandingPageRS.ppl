@@ -1,0 +1,361 @@
+import PTNUI:LP:LandingPageTabRS;
+import PTNUI:Dashboard:DashboardTabRS;
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+import PTNUI:Model:Tile;
+
+/* Landing Page rowset contains a scrollarea, where each row in the scrollarea is a landing page.
+ * Inside the scrollarea is a grid, which contains the tiles of a landing page
+ */
+class LandingPageRS
+   method LandingPageRS(&scrollName As string, &rsName As string);
+   
+   method GetTabs() Returns array of PTNUI:LP:LandingPageTabRS;
+   method AddTab(&name As string, &label As string, &overrideSeq As number);
+   method DeleteTab(&name As string);
+   method UndeleteTab(&name As string);
+   method TabExists(&name As string) Returns boolean;
+   
+   method initRowset(&lp As PTNUI:Model:LandingPage);
+   method reorderLP(&fromRow As number, &toRow As number);
+   method AddTile(&tile As PTNUI:Model:Tile);
+   method AddTileFromTab(&fromRow As Row, &targetTabName As string, &pos As number);
+   method addTileFromRS(&fromRow As Row, &targetHPRow As Row, &pos As number);
+   method removeTile(&rowNum As number);
+   method moveTile(&fromTab As string, &fromRow As integer, &toTab As string, &toRow As integer);
+   method tileExistsExceptTab(&tileId As string, &tabName As string) Returns boolean;
+   method tileExistsOnTab(&tileId As string, &tabName As string) Returns boolean;
+   
+   method startPersonalization();
+   method finishPersonalization();
+   
+   method createModel() Returns PTNUI:Model:LandingPage;
+   
+   property string ActiveTab;
+   property boolean IsOpDashboard;
+   property boolean bPersonalizeAuth;
+   property string ContextParams;
+   property boolean IsAccessibilityMode;
+private
+   method getTab(&tabName As string) Returns PTNUI:LP:LandingPageTabRS;
+   method AddTabToRS(&row As Row, &lpTab As PTNUI:Model:LandingPageTab) Returns PTNUI:LP:LandingPageTabRS;
+   
+   instance boolean &m_inPersonalization;
+   instance Rowset &m_scrollRS;
+   instance string &m_scrollName;
+   instance string &m_rsName;
+   instance array of PTNUI:LP:LandingPageTabRS &m_lptRS;
+   instance boolean &m_isOpDashboard;
+end-class;
+
+Component PTNUI:Model:LandingPage &lpSysDef;
+
+method LandingPageRS
+   /+ &scrollName as String, +/
+   /+ &rsName as String +/
+   &m_scrollName = &scrollName;
+   &m_rsName = &rsName;
+   &m_scrollRS = GetLevel0()(1).GetRowset(@("Scroll." | &m_scrollName));
+   &m_lptRS = CreateArrayRept(create PTNUI:LP:LandingPageTabRS( Null, "", "", ""), 0);
+   %This.IsOpDashboard = False;
+   %This.bPersonalizeAuth = IsMenuItemAuthorized(MenuName.PORTAL_PERS_HOMEPAGE, BarName.USE, ItemName.HOME_PAGE, Page.PORTAL_HPCOMP, %Action_UpdateDisplay);
+   %This.IsAccessibilityMode = (GetUserOption("PPTL", "ACCESS") = "A");
+   If IsAGRequest() = True Or
+         IsMDRequest() = True Then
+      %This.bPersonalizeAuth = False;
+   End-If;
+   
+   Local array of string &param_arr = %Request.GetParameterValues("CONTEXTIDPARAMS");
+   Local number &i;
+   For &i = 1 To &param_arr.Len
+      If &ContextParams <> "" Then
+         &ContextParams = &ContextParams | "&";
+      End-If;
+      &ContextParams = &ContextParams | Substitute(&param_arr [&i], ":", "=");
+   End-For;
+end-method;
+
+method getTab
+   /+ &tabName as String +/
+   /+ Returns PTNUI:LP:LandingPageTabRS +/
+   Local number &i;
+   For &i = 1 To &m_lptRS.Len
+      If &m_lptRS [&i].Name = &tabName Then
+         Return &m_lptRS [&i];
+      End-If;
+   End-For;
+   Return Null;
+end-method;
+
+method AddTabToRS
+   /+ &row as Row, +/
+   /+ &lpTab as PTNUI:Model:LandingPageTab +/
+   /+ Returns PTNUI:LP:LandingPageTabRS +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS;
+   If %This.IsOpDashboard Then
+      &lptRS = create PTNUI:Dashboard:DashboardTabRS(&row, &lpTab.ID, &m_rsName, &m_rsName);
+   Else
+      &lptRS = create PTNUI:LP:LandingPageTabRS(&row, &lpTab.ID, &m_rsName, &m_rsName);
+   End-If;
+   &lptRS.Label = &lpTab.Label;
+   Local Record &rec = &row.PTNUI_LP_PAGE;
+   &rec.PTNUI_LP_LABEL.Value = &lpTab.Label;
+   If Not &lpTab.IsRenameable Then
+      &rec.PTNUI_LP_LABEL.Enabled = False;
+   End-If;
+   &rec.PTNUI_LP_NAME.Value = &lpTab.ID;
+   &rec.SEQ_NBR.Value = &lpTab.SeqNum;
+   If &m_inPersonalization Then
+      &lptRS.startPersonalization();
+   Else
+      &lptRS.finishPersonalization();
+   End-If;
+   &m_lptRS.Push(&lptRS);
+   Return &lptRS;
+end-method;
+
+method initRowset
+   /+ &lp as PTNUI:Model:LandingPage +/
+   Local array of PTNUI:Model:LandingPageTab &tabs = &lp.GetTabs();
+   Local number &i;
+   
+   &m_scrollRS.Flush();
+   &m_lptRS = CreateArrayRept(create PTNUI:LP:LandingPageTabRS( Null, "", "", ""), 0);
+   For &i = 1 To &tabs.Len
+      Local PTNUI:Model:LandingPageTab &tab = &tabs [&i];
+      Local number &idx = &i;
+      /*
+      If &lp.isActiveTab(&tab) Then
+         If &i > 1 Then
+            &m_scrollRS.InsertRow(0);
+         End-If;
+         &idx = 1;
+      Else
+*/
+      If &m_scrollRS.ActiveRowCount < &i Then
+         &m_scrollRS.InsertRow(&m_scrollRS.ActiveRowCount);
+         &i = &m_scrollRS.ActiveRowCount;
+      End-If;
+      /*
+      End-If;
+  */
+      Local Row &curTab = &m_scrollRS(&idx);
+      Local PTNUI:LP:LandingPageTabRS &lptRS = %This.AddTabToRS(&curTab, &tab);
+      &lptRS.initRowset(&tab);
+   End-For;
+   &m_scrollRS.Sort(PTNUI_LP_PAGE.SEQ_NBR, "A", PTNUI_LP_PAGE.PTNUI_LP_LABEL, "A");
+end-method;
+
+method GetTabs
+   /+ Returns Array of PTNUI:LP:LandingPageTabRS +/
+   Return &m_lptRS;
+end-method;
+
+method reorderLP
+   /+ &fromRow as Number, +/
+   /+ &toRow as Number +/
+   If &fromRow = &toRow Then
+      Return;
+   End-If;
+   
+   Local number &i;
+   Local number &fromSeqNum = &m_scrollRS(&fromRow).PTNUI_LP_PAGE.SEQ_NBR.Value;
+   Local number &toSeqNum = &m_scrollRS(&toRow).PTNUI_LP_PAGE.SEQ_NBR.Value;
+   
+   Local string &z;
+   Local number &recSeqNum;
+   For &i = 1 To &m_scrollRS.ActiveRowCount
+      Local Record &rec = &m_scrollRS(&i).PTNUI_LP_PAGE;
+      &recSeqNum = &rec.SEQ_NBR.Value;
+      If &recSeqNum = &fromSeqNum Then
+         &rec.SEQ_NBR.Value = &toSeqNum;
+      Else
+         If &fromSeqNum > &toSeqNum Then
+            rem move higher to lower;
+            If &recSeqNum >= &toSeqNum And
+                  &recSeqNum < &fromSeqNum Then
+               &rec.SEQ_NBR.Value = &rec.SEQ_NBR.Value + 1;
+            End-If;
+         Else
+            rem move lower to higher;
+            If &recSeqNum > &fromSeqNum And
+                  &recSeqNum <= &toSeqNum Then
+               &rec.SEQ_NBR.Value = &rec.SEQ_NBR.Value - 1;
+            End-If;
+         End-If;
+      End-If;
+      rem         &z = &z | " " | &rec.SEQ_NBR.Value;
+   End-For;
+   rem Warning (&z);
+   &m_scrollRS.Sort(PTNUI_LP_PAGE.SEQ_NBR, "A", PTNUI_LP_PAGE.PTNUI_LP_LABEL, "A");
+end-method;
+
+method AddTab
+   /+ &name as String, +/
+   /+ &label as String, +/
+   /+ &overrideSeq as Number +/
+   Local array of string &parts = Split(&name, ".");
+   If &parts.Len <> 3 Then
+      Error ("tab name invalid. " | &name);
+   End-If;
+   
+   Local PTNUI:Model:LandingPageTab &tab;
+   &tab = &lpSysDef.GetTab(&parts [1], &parts [2], &parts [3]);
+   If &tab = Null Then
+      &tab = create PTNUI:Model:LandingPageTab(&parts [1], &parts [2], &parts [3]);
+      &tab.SeqNum = &m_scrollRS.ActiveRowCount;
+   Else
+      &tab = &tab.clone();
+   End-If;
+   &tab.Label = &label;
+   
+   If &tab.SeqNum = 0 And
+         &overrideSeq > 0 Then
+      &tab.SeqNum = &overrideSeq;
+   End-If;
+   
+   &m_scrollRS.InsertRow(&m_scrollRS.ActiveRowCount);
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.AddTabToRS(&m_scrollRS(&m_scrollRS.ActiveRowCount), &tab);
+   &lptRS.initRowset(&tab);
+end-method;
+
+method DeleteTab
+   /+ &name as String +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(&name);
+   &lptRS.MarkedForDelete = True;
+end-method;
+
+method UndeleteTab
+   /+ &name as String +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(&name);
+   &lptRS.MarkedForDelete = False;
+end-method;
+
+method TabExists
+   /+ &name as String +/
+   /+ Returns Boolean +/
+   Local number &i;
+   For &i = 1 To &m_lptRS.Len
+      If &m_lptRS [&i].Name = &name Then
+         Return True;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method AddTile
+   /+ &tile as PTNUI:Model:Tile +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(%This.ActiveTab);
+   If &lptRS = Null Then
+      MessageBox(0, "", 95, 10007, "HP %1 does not exist", %This.ActiveTab);
+   Else
+      &lptRS.AddTile(&tile);
+   End-If;
+end-method;
+
+method AddTileFromTab
+   /+ &fromRow as Row, +/
+   /+ &targetTabName as String, +/
+   /+ &pos as Number +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(&targetTabName);
+   If &lptRS = Null Then
+      MessageBox(0, "", 95, 10007, "HP %1 does not exist", %This.ActiveTab);
+   Else
+      &lptRS.AddTileFromRS(&fromRow, &pos);
+   End-If;
+end-method;
+
+method addTileFromRS
+   /+ &fromRow as Row, +/
+   /+ &targetHPRow as Row, +/
+   /+ &pos as Number +/
+   Local string &targetLP = &targetHPRow.PTNUI_HPPNL2REC.PTNUI_LP_NAME.Value;
+   %This.AddTileFromTab(&fromRow, &targetLP, &pos);
+end-method;
+
+method removeTile
+   /+ &rowNum as Number +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(%This.ActiveTab);
+   &lptRS.removeTile(&rowNum);
+end-method;
+
+method moveTile
+   /+ &fromTab as String, +/
+   /+ &fromRow as Integer, +/
+   /+ &toTab as String, +/
+   /+ &toRow as Integer +/
+   If &fromRow = &toRow And
+         &fromTab = &toTab Then
+      Return;
+   End-If;
+   
+   If &fromTab = &toTab Then
+      Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(&fromTab);
+      &lptRS.reorderTile(&fromRow, &toRow);
+   Else
+      
+   End-If;
+end-method;
+
+method tileExistsExceptTab
+   /+ &tileId as String, +/
+   /+ &tabName as String +/
+   /+ Returns Boolean +/
+   
+   Local number &i;
+   For &i = 1 To &m_lptRS.Len
+      Local PTNUI:LP:LandingPageTabRS &lptRS = &m_lptRS [&i];
+      If &lptRS.Name = &tabName Then
+         Continue;
+      End-If;
+      Local boolean &exists = &lptRS.tileExists(&tileId);
+      If &exists Then
+         Return True;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method tileExistsOnTab
+   /+ &tileId as String, +/
+   /+ &tabName as String +/
+   /+ Returns Boolean +/
+   Local PTNUI:LP:LandingPageTabRS &lptRS = %This.getTab(&tabName);
+   Return &lptRS.tileExists(&tileId);
+end-method;
+
+method startPersonalization
+   &m_inPersonalization = True;
+   Local number &i;
+   For &i = 1 To &m_lptRS.Len
+      Local PTNUI:LP:LandingPageTabRS &lptRS = &m_lptRS [&i];
+      &lptRS.startPersonalization();
+   End-For;
+end-method;
+
+method finishPersonalization
+   &m_inPersonalization = False;
+   Local number &i;
+   If &m_lptRS.Len = 0 Then
+      &m_scrollRS(1).PTNUI_LP_PAGE.PTNUI_TILE_ADD.Visible = False;
+      &m_scrollRS(1).GetRowset(1).HideAllRows();
+   Else
+      For &i = 1 To &m_lptRS.Len
+         Local PTNUI:LP:LandingPageTabRS &lptRS = &m_lptRS [&i];
+         &lptRS.finishPersonalization();
+      End-For;
+   End-If;
+end-method;
+
+method createModel
+   /+ Returns PTNUI:Model:LandingPage +/
+   Local PTNUI:Model:LandingPage &lp = create PTNUI:Model:LandingPage();
+   Local number &i;
+   
+   For &i = 1 To &m_lptRS.Len
+      Local PTNUI:Model:LandingPageTab &lpt = &m_lptRS [&i].createModel();
+      &lp.AddTab(&lpt);
+   End-For;
+   Return &lp;
+end-method;
+

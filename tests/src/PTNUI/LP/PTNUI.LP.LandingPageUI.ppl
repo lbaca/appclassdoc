@@ -1,0 +1,171 @@
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+import PTNUI:LP:LandingPageRS;
+import PTNUI:LP:LandingPageTabRS;
+
+class LandingPageUI
+   method setHPBtn(&lp As PTNUI:Model:LandingPage);
+   
+   method initTileSelMoveCopy(&lp As PTNUI:LP:LandingPageRS, &locked As boolean);
+   
+   method startPersonalization();
+   method finishPersonalization(&lp As PTNUI:Model:LandingPage);
+end-class;
+
+Declare Function getClassicHomepageURLForPortal PeopleCode FUNCLIB_PTBR.FUNCLIB FieldFormula;
+Declare Function setPanelState PeopleCode PT_TWOPNL_WORK.BUTTON FieldFormula;
+Declare Function ClearConfirmation PeopleCode PT_WORK.PT_CONFIRM_MSG FieldFormula;
+Declare Function GetNavBarURL PeopleCode PTNUI_NB_WRK.FUNCLIB FieldFormula;
+
+Component PTNUI:Model:LandingPage &lpSysDef;
+
+method setHPBtn
+   /+ &lp as PTNUI:Model:LandingPage +/
+   Local Rowset &rs = GetRowset(Scroll.PTNUI_SELLP_DVW);
+   If &rs(1).PTNUI_SELLP_DVW.PTNUI_LP_NAME.Value <> "" Then
+      Return;
+   End-If;
+   
+   Local number &i;
+   Local array of PTNUI:Model:LandingPageTab &tabs = &lp.GetTabs();
+   
+   If &tabs.Len = 0 Then
+      PTNUI_LAND_WRK.GROUPBOX14.Label = " ";
+      PTNUI_LAND_WRK.GROUPBOX12.Visible = False;
+      PTNUI_LAND_WRK.GROUPBOX12.Enabled = False;
+   Else
+      For &i = 1 To &tabs.Len
+         Local PTNUI:Model:LandingPageTab &lpTab = &tabs [&i];
+         If &i > 1 Then
+            &rs.InsertRow(&i - 1);
+         End-If;
+         If &lpTab.TabName = &lp.ActiveTab Then
+            PTNUI_LAND_WRK.GROUPBOX14.Label = &lpTab.Label;
+         End-If;
+         Local string &url = "javascript:lpSwipeToTabFromDD('" | &lpTab.ID | "');";
+         
+         &rs(&i).PTNUI_SELLP_DVW.PTNUI_LP_NAME.Value = &url;
+         &rs(&i).PTNUI_SELLP_DVW.PTNUI_LP_NAME.Label = &lpTab.Label;
+         &rs(&i).PTNUI_SELLP_DVW.PTNUI_LP_NAME.HoverText = &lpTab.Label;
+         
+         &rs(&i).PTNUI_SELLP_DVW.PTNUI_LP_LABEL.Value = &lpTab.Label;
+         &rs(&i).PTNUI_SELLP_DVW.SEQ_NBR.Value = &lpTab.SeqNum;
+         &rs(&i).FreeFormStyleName = "ps_menuitem";
+      End-For;
+      &rs.Sort(PTNUI_SELLP_DVW.SEQ_NBR, "A", PTNUI_SELLP_DVW.PTNUI_LP_LABEL, "A");
+      
+      PTNUI_LAND_WRK.GROUPBOX14.SetGroupletMOptions("bHeader@0;bVertical@1;bMask@1;sTitle@" | MsgGetText(95, 10023, "Message Not Found - Select Homepage") | ";bAutoClose@1;sStyle@ps_popup-menu ps_menutype-grid lpselbtn;");
+      
+   End-If;
+end-method;
+
+method initTileSelMoveCopy
+   /+ &lp as PTNUI:LP:LandingPageRS, +/
+   /+ &locked as Boolean +/
+   Local number &i, &idx;
+   Local boolean &rowAdded = False;
+   
+   PTNUI_MVCP_HDR.PTNUI_TITLE.Value = MsgGetText(95, 10022, "MNF-Select Action");
+   PTNUI_MVCP_HDR.PTNUI_BACK_BTN.FreeFormStyleName = "psc_hidden";
+   
+   Local Rowset &mvcpRS = GetRowset(Scroll.PTNUI_LEFTG_DVW);
+   &mvcpRS.Flush();
+   &i = 1;
+   If Not &locked Then
+      &mvcpRS(&i).PTNUI_LEFTG_DVW.PTNUI_ACTION_LINK.Value = "M";
+      &mvcpRS(&i).PTNUI_LEFTG_DVW.PTNUI_ACTION_LINK.Label = MsgGetExplainText(95, 10020, "MNF-Move To");
+      &mvcpRS(&i).PTNUI_LEFTG_DVW.PTNUI_ACTION_LINK.HoverText = MsgGetExplainText(95, 10020, "MNF-Move To");
+      &mvcpRS(&i).FreeFormStyleName = "ps_menuitem fldr";
+      &mvcpRS.InsertRow(&mvcpRS.ActiveRowCount);
+      &i = &i + 1;
+   End-If;
+   &mvcpRS(&i).PTNUI_LEFTG_DVW.PTNUI_ACTION_LINK.Value = "C";
+   &mvcpRS(&i).PTNUI_LEFTG_DVW.PTNUI_ACTION_LINK.Label = MsgGetExplainText(95, 10019, "MNF-Copy To");
+   &mvcpRS(&i).PTNUI_LEFTG_DVW.PTNUI_ACTION_LINK.HoverText = MsgGetExplainText(95, 10019, "MNF-Copy To");
+   &mvcpRS(&i).FreeFormStyleName = "ps_menuitem fldr";
+   
+   Local array of PTNUI:LP:LandingPageTabRS &tabs = &lp.GetTabs();
+   Local Rowset &rs = GetRowset(Scroll.PTNUI_RGHTG_DVW);
+   &rs.Flush();
+   For &i = 1 To &tabs.Len
+      /*
+
+      If Not &lpSysDef.TabExists(%Node, %Portal, &tabs [&i].Name) Then
+         Continue;
+      End-If;
+*/
+      If Not &rowAdded Then
+         &idx = 1;
+         &rowAdded = True;
+      Else
+         &rs.InsertRow(&rs.ActiveRowCount);
+         &idx = &rs.ActiveRowCount;
+      End-If;
+      
+      &rs(&idx).PTNUI_RGHTG_DVW.PTNUI_ACTION_LINK.Value = &tabs [&i].Name;
+      &rs(&idx).PTNUI_RGHTG_DVW.PTNUI_ACTION_LINK.Label = &tabs [&i].Label;
+      &rs(&idx).PTNUI_RGHTG_DVW.PTNUI_ACTION_LINK.HoverText = &tabs [&i].Label;
+      &rs(&idx).FreeFormStyleName = "ps_menuitem";
+      If &lp.ActiveTab = &tabs [&i].Name Then
+         rem don't allow move or copy to self;
+         &rs(&idx).Visible = False;
+      Else
+         If &tabs [&i].IsLayoutLocked Or
+               &lp.tileExistsOnTab(PTNUI_LAND_REC.PTNUI_TILE_ID.Value, &tabs [&i].Name) Then
+            &rs(&idx).Visible = False;
+         Else
+            &rs(&idx).Visible = True;
+         End-If;
+      End-If;
+   End-For;
+end-method;
+
+method startPersonalization
+   PTNUI_LP_HEADER.CANCEL_BTN.Visible = True;
+   PTNUI_LP_HEADER.SAVE_PB.Visible = True;
+   PTNUI_LP_HEADER.PTNUI_ACTION_LINK.Visible = False;
+   GetPage(Page.PT_LANDINGPAGE).FreeFormStyleName = "pt_homepage persmode";
+   PT_TWOPNL_WORK.GROUPBOX1.FreeFormStyleName = "persmode";
+   PT_TWOPNL_WORK.GROUPBOX3.FreeFormStyleName = "";
+   PTNUI_LAND_WRK.GROUPBOX20.FreeFormStyleName = "persmode";
+   PTNUI_LAND_WRK.GROUPBOX1.FreeFormStyleName = "hppnlopen";
+   PTNUI_LAND_WRK.GROUPBOX14.FreeFormStyleName = "psc_force-hidden";
+   If IsAGRequest() = False And
+         IsMDRequest() = False Then
+      PTLAYOUT.HEADER_GROUPBOX0.FreeFormStyleName = "persmode";
+      PTLAYOUT.PAGETITLE_GROUPBOX.Label = MsgGetText(95, 9999, "Personalize Homepage");
+      PTLAYOUT.PAGETITLE_GROUPBOX.FreeFormStyleName = "";
+      /*   PTLAYOUT.PAGETITLE_GROUPBOX.Visible = True; */
+      PTLAYOUT.HEADER_GROUPBOX6.Visible = False;
+   End-If;
+   PTNUI_LAND_WRK.GROUPBOX1.Visible = True;
+   <* AddOnLoadScript("PTNavBar.Url = '" | GetNavBarURL( True) | "';"); *>
+   SetSaveWarningFilter( False);
+end-method;
+
+method finishPersonalization
+   /+ &lp as PTNUI:Model:LandingPage +/
+   PTNUI_LP_HEADER.CANCEL_BTN.Visible = False;
+   PTNUI_LP_HEADER.SAVE_PB.Visible = False;
+   PTNUI_LP_HEADER.PTNUI_ACTION_LINK.Visible = True;
+   GetPage(Page.PT_LANDINGPAGE).FreeFormStyleName = "pt_homepage";
+   PT_TWOPNL_WORK.GROUPBOX1.FreeFormStyleName = "";
+   PT_TWOPNL_WORK.GROUPBOX3.FreeFormStyleName = "psc_force-hidden";
+   If IsAGRequest() = False And
+         IsMDRequest() = False Then
+      PTLAYOUT.HEADER_GROUPBOX0.FreeFormStyleName = "";
+      PTLAYOUT.PAGETITLE_GROUPBOX.FreeFormStyleName = "psc_hidden";
+      PTLAYOUT.HEADER_GROUPBOX6.Visible = True;
+   End-If;
+   PTNUI_LAND_WRK.GROUPBOX20.FreeFormStyleName = "";
+   PTNUI_LAND_WRK.GROUPBOX1.FreeFormStyleName = "";
+   PTNUI_LAND_WRK.GROUPBOX14.FreeFormStyleName = "";
+   %This.setHPBtn(&lp);
+   
+   PTNUI_LAND_WRK.GROUPBOX14.Visible = True;
+   PTNUI_LAND_WRK.GROUPBOX1.Visible = False;
+   ClearConfirmation();
+   <* AddOnLoadScript("PTNavBar.Url = '" | GetNavBarURL( True) | "';"); *>
+   SetSaveWarningFilter( True);
+end-method;
+

@@ -1,0 +1,41 @@
+import PTNUI:NavBarContentArea:NBContent;
+import PTNUI:NavBarContentArea:NBContentCollection;
+
+class RecentlyUsed extends PTNUI:NavBarContentArea:NBContentCollection
+   method RecentlyUsed();
+end-class;
+
+Declare Function PortalOpen PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+
+method RecentlyUsed
+   %Super = create PTNUI:NavBarContentArea:NBContentCollection();
+   
+   Local ApiObject &p = PortalOpen();
+   
+   Local Record &rec = CreateRecord(Record.PT_PORTAL_MRU);
+   Local SQL &sql = CreateSQL("SELECT OPRID, PORTAL_NAME, PT_PORTAL_MRU_ID, PORTAL_OBJNAME, PORTAL_URLTEXT FROM PS_PT_PORTAL_MRU WHERE OPRID = :1 AND PORTAL_NAME = :2", %UserId, %Portal);
+   
+   Local ApiObject &cref;
+   While &sql.Fetch(&rec)
+      Local ApiObject &c = &p.findcrefbyname(&rec.PORTAL_OBJNAME.Value);
+      Local string &url, &label, &mru_id;
+      If &c = Null Then
+         Local array of string &uninav_link = Split(&rec.PORTAL_URLTEXT.Value, "$$$");
+         If &uninav_link.Len <> 3 Then
+            Continue;
+            rem Error ("Unable to split " | &rec.PORTAL_URLTEXT.Value);
+         End-If;
+         &url = "javascript:PTNavBar.OpenInWindow('" | EscapeJavascriptString(&uninav_link [3]) | "');";
+         &label = &uninav_link [2];
+         &mru_id = &uninav_link [1];
+      Else
+         &url = "javascript:PTNavBar.OpenInWindow('" | EscapeJavascriptString(&c.AbsolutePortalURL) | "');";
+         &label = &c.label;
+         &mru_id = &rec.PT_PORTAL_MRU_ID.Value;
+      End-If;
+      %This.InsertItem(create PTNUI:NavBarContentArea:NBContent(&mru_id, &label, &url));
+   End-While;
+   &sql.Close();
+   &p.close();
+end-method;
+

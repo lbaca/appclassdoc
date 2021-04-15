@@ -1,0 +1,1106 @@
+class Tile
+   method Tile(&pNodeName As string, &pPortalName As string, &pTileName As string, &pTileLabel As string);
+   
+   method SetPropertiesFromCref(&cref As ApiObject);
+   method SetPropertiesFromPinnedPglt(&pinnedPglt As Record);
+   method SetPropertiesFromSelPglt(&selPglt As ApiObject);
+   method SetPropertiesFromAvailPglt(&availPglt As ApiObject);
+   method SetPropertiesFromAssignedPglt(&assignPglt As ApiObject);
+   method SetPropertiesFromRec(&rec As Record);
+   
+   method SetPropertiesToCref(&cref As ApiObject);
+   method SetPropertiesToPinnedPglt(&pinnedPglt As Record);
+   
+   method setBehaviors(&lb As string);
+   
+   method MergeSystemData(&tSys As PTNUI:Model:Tile);
+   
+   method toXML(&pXmlNode As XmlNode);
+   method fromXML(&pXmlNode As XmlNode);
+   
+   method clone() Returns PTNUI:Model:Tile;
+   method equals(&pTile As PTNUI:Model:Tile) Returns boolean;
+   
+   method debug();
+   method debugString() Returns string;
+   
+   property string ID get;
+   property string RemoteID get;
+   
+   property string NodeName;
+   property string PortalName;
+   property string TileName;
+   property string Label;
+   property string Description;
+   property number CRefSeqNum;
+   
+   property string GltContentUrl;
+   property string GltContentActionUrl;
+   property string GltPortalActionUrl;
+   property string GltPlusURLParam;
+   property string GltId;
+   property string GltImageName;
+   property string GltPageName;
+   property string GltURLType;
+   property string GltContentProvider;
+   property string GltURL;
+   property number GltType;
+   property number GltTimer;
+   property string GltEventName;
+   
+   property number SeqNum;
+   property number RowNum;
+   property number ColNum;
+   property number Width;
+   property number Height;
+   property number AltWidth;
+   property number AltHeight;
+   property number DisplayIn;
+   property string DisplayModalParams;
+   property string DefaultModalTitle;
+   property number IsSmallFFOptimized;
+   property number IsFluid;
+   
+   property string LayoutBehavior;
+   property boolean IsRemoveable;
+   property boolean HasGrouplet;
+   property boolean UsePSC;
+   property boolean IsAutoSize;
+   property boolean IsResizeable;
+   property boolean IsHotspotEnabled;
+   
+   property string CategoryName;
+   property string CategoryLabel;
+   property string UsageType;
+   property string URLType;
+   property string ContentProvider;
+   property string URL;
+   property string TemplateType;
+   property string Template;
+   property string OwnerId;
+   property string Product;
+   property string Keywords;
+   property string ValidFrom;
+   property string ValidTo;
+   
+   property boolean IsRemote;
+   property string RemoteNodeName;
+   property string RemotePortalName;
+   property string RemoteCRefName;
+   property string NetworkNodeName;
+   
+   property boolean IsClusterAwareTile;
+   property boolean IsNavbarTile;
+   property boolean IsHomepageTile;
+   property boolean IsDashboardTile;
+   property boolean IsPinnedTile;
+   
+   property boolean MarkedForDelete;
+   
+   
+private
+   
+   Constant &cstXML_ATTRIBUTE_NODE_NAME = "nodeName";
+   Constant &cstXML_ATTRIBUTE_PORTAL_NAME = "portalName";
+   Constant &cstXML_ATTRIBUTE_TILE_NAME = "tileName";
+   Constant &cstXML_ATTRIBUTE_LABEL = "label";
+   Constant &cstXML_ATTRIBUTE_DESCRIPTION = "description";
+   Constant &cstXML_ATTRIBUTE_CREF_SEQ_NUM = "crefSeqNum";
+   
+   Constant &cstXML_ATTRIBUTE_GROUPLET_CONTENT_URL = "groupletContentUrl";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_ACTION_CONTENT_URL = "groupletActionContentUrl";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_ACTION_PORTAL_URL = "groupletActionPortalUrl";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_PLUS_URL_PARAM = "groupletPlusURLParam";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_ID = "groupletId";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_IMAGE_NAME = "groupletImageName";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_PAGE_NAME = "groupletPageName";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_URL_TYPE = "groupletURLType";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_CONTENT_PROVIDER = "groupletContentProvider";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_URL = "groupletURL";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_TYPE = "groupletType";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_TIMER = "groupletTimer";
+   Constant &cstXML_ATTRIBUTE_GROUPLET_EVENTNAME = "groupletEventName";
+   
+   Constant &cstXML_ATTRIBUTE_SEQ_NUM = "seqNum";
+   Constant &cstXML_ATTRIBUTE_ROW_NUM = "rowNum";
+   Constant &cstXML_ATTRIBUTE_COLUMN_NUM = "colNum";
+   Constant &cstXML_ATTRIBUTE_WIDTH = "width";
+   Constant &cstXML_ATTRIBUTE_HEIGHT = "height";
+   Constant &cstXML_ATTRIBUTE_ALTWIDTH = "altWidth";
+   Constant &cstXML_ATTRIBUTE_ALTHEIGHT = "altHeight";
+   Constant &cstXML_ATTRIBUTE_DISPLAY_IN = "displayIn";
+   Constant &cstXML_ATTRIBUTE_DISPLAY_MODAL_PARAMS = "displayModalParams";
+   Constant &cstXML_ATTRIBUTE_DEFAULT_MODAL_TITLE = "defaultModalTitle";
+   Constant &cstXML_ATTRIBUTE_IS_SFF = "isSmallFFOptimized";
+   Constant &cstXML_ATTRIBUTE_IS_FLUID = "isFluid";
+   Constant &cstXML_ATTRIBUTE_IS_AUTOSIZE = "isAutoSize";
+   Constant &cstXML_ATTRIBUTE_IS_RESIZEABLE = "isResizeable";
+   Constant &cstXML_ATTRIBUTE_IS_HOTSPOT_ENABLED = "isHotspotEnabled";
+   
+   Constant &cstXML_ATTRIBUTE_LAYOUT_BEHAVIOR = "layoutBehavior";
+   Constant &cstXML_ATTRIBUTE_IS_REMOVEABLE = "isRemoveable";
+   Constant &cstXML_ATTRIBUTE_HAS_GROUPLET = "hasGrouplet";
+   Constant &cstXML_ATTRIBUTE_USE_PSC = "usePSC";
+   
+   Constant &cstXML_ATTRIBUTE_CATEGORY_NAME = "categoryName";
+   Constant &cstXML_ATTRIBUTE_CATEGORY_LABEL = "CategoryLabel";
+   Constant &cstXML_ATTRIBUTE_USAGE_TYPE = "usageType";
+   Constant &cstXML_ATTRIBUTE_URL_TYPE = "urlType";
+   Constant &cstXML_ATTRIBUTE_CONTENT_PROVIDER = "contentProvider";
+   Constant &cstXML_ATTRIBUTE_URL = "url";
+   Constant &cstXML_ATTRIBUTE_TEMPLATE_TYPE = "templateType";
+   Constant &cstXML_ATTRIBUTE_TEMPLATE = "template";
+   Constant &cstXML_ATTRIBUTE_OWNER_ID = "ownerId";
+   Constant &cstXML_ATTRIBUTE_PRODUCT = "product";
+   Constant &cstXML_ATTRIBUTE_KEYWORDS = "keywords";
+   Constant &cstXML_ATTRIBUTE_VALID_FROM = "validFrom";
+   Constant &cstXML_ATTRIBUTE_VALID_TO = "validTo";
+   
+   Constant &cstXML_ATTRIBUTE_IS_REMOTE = "isRemote";
+   Constant &cstXML_ATTRIBUTE_REMOTE_NODE_NAME = "remoteNodeName";
+   Constant &cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME = "remotePortalName";
+   Constant &cstXML_ATTRIBUTE_REMOTE_CREF_NAME = "remoteCrefName";
+   Constant &cstXML_ATTRIBUTE_NETWORK_NODE_NAME = "networkNodeName";
+   
+   Constant &cstXML_ATTRIBUTE_IS_CLUSTER_AWARE_TILE = "isClusterAwareTile";
+   Constant &cstXML_ATTRIBUTE_IS_NAVBAR_TILE = "isNavbarTile";
+   Constant &cstXML_ATTRIBUTE_IS_HOMEPAGE_TILE = "isHomepageTile";
+   Constant &cstXML_ATTRIBUTE_IS_DASHBOARD_TILE = "isDashboardTile";
+   Constant &cstXML_ATTRIBUTE_IS_PINNED_TILE = "isPinnedTile";
+   
+   Constant &cstXML_ATTRIBUTE_MARKED_FOR_DELETE = "markedForDelete";
+   
+   Constant &cstLOCAL_NODE = "LOCAL_NODE";
+   
+   Constant &cstCREF_ATTRIBUTE_LOCATION = "LOCATION";
+   Constant &cstCREF_ATTRIBUTE_NODE = "NODE";
+   Constant &cstCREF_ATTRIBUTE_PORTAL = "PORTAL";
+   Constant &cstCREF_ATTRIBUTE_CREFID = "CREFID";
+   Constant &cstCREF_ATTRIBUTE_CLUSTER_AWARE_TILE = "CLUSTER_AWARE";
+   Constant &cstCREF_ATTRIBUTE_NAVBAR_TILE = "NAVBAR_TILE";
+   Constant &cstCREF_ATTRIBUTE_HOMEPAGE_TILE = "HOMEPAGE_TILE";
+   Constant &cstCREF_ATTRIBUTE_DASHBOARD_TILE = "DASHBOARD_TILE";
+   Constant &cstCREF_ATTRIBUTE_DEFAULT_MODAL_TITLE = "DEFAULT_MODAL_TITLE";
+   
+   Constant &cstCREF_ATTRIBUTE_VALUE_REMOTE = "REMOTE";
+   
+   Constant &cstTRUE = "true";
+   Constant &cstFALSE = "false";
+   
+   
+end-class;
+
+Declare Function SetSeqNum PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function SetRowNum PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function SetColNum PeopleCode PTNUI_LAND_WRK.FUNCLIB FieldFormula;
+Declare Function IsRemotePIANode PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+Declare Function GetNodeURL PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+Declare Function PortalOpenByName PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function StripSiteNewWin PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+Declare Function getCRefAttribute PeopleCode PTAL_DASHBD_WRK.FUNCLIB FieldFormula;
+Declare Function setCRefAttribute PeopleCode PTAL_DASHBD_WRK.FUNCLIB FieldFormula;
+Declare Function getCRefKeywords PeopleCode PTAL_DASHBD_WRK.FUNCLIB FieldFormula;
+
+method Tile
+   /+ &pNodeName as String, +/
+   /+ &pPortalName as String, +/
+   /+ &pTileName as String, +/
+   /+ &pTileLabel as String +/
+   
+   &NodeName = &pNodeName;
+   &PortalName = &pPortalName;
+   &TileName = &pTileName;
+   &Label = &pTileLabel;
+   rem  &CrefName = &pTileName;
+   
+   &SeqNum = 1;
+   &RowNum = 1;
+   &ColNum = 1;
+   &Width = 1;
+   &Height = 1;
+   &GltType = 2;
+   &GltURLType = "NONE";
+   
+   &IsRemoveable = True;
+   &LayoutBehavior = "4OPT";
+   &IsAutoSize = False;
+   &IsResizeable = False;
+   &IsHotspotEnabled = True;
+   
+   &IsRemote = False;
+   &RemoteNodeName = "";
+   &RemotePortalName = "";
+   &RemoteCRefName = "";
+   &NetworkNodeName = %LocalNode;
+   
+   &MarkedForDelete = False;
+   
+end-method;
+
+method SetPropertiesFromCref
+   /+ &cref as ApiObject +/
+   
+   Local string &location, &remodeNode, &remotePortal, &remoteCRef;
+   
+   If &cref = Null Then
+      Return;
+   End-If;
+   
+   If &cref.GroupletId = "" Then
+      rem      Return;
+   End-If;
+   
+   rem set properties from link first;
+   If &Label = "" Then
+      &Label = &cref.Label;
+   End-If;
+   &Description = &cref.Description;
+   &CRefSeqNum = &cref.SequenceNumber;
+   
+   If &cref.IsLink Then
+      try
+         
+         Local ApiObject &Portal = PortalOpenByName(%This.PortalName);
+         Local ApiObject &CRefLink = &Portal.FindCRefLinkByName(&cref.Name);
+         
+         If (&CRefLink <> Null) And
+               (&CRefLink.Authorized) Then
+            If &CRefLink.LinksPortalName = &Portal.Name Or
+                  &CRefLink.LinksPortalName = "LOCAL_PORTAL" Then
+            Else
+               &Portal.close();
+               &Portal = PortalOpenByName(&CRefLink.LinksPortalName);
+            End-If;
+            
+            &cref = &Portal.FindCRefByName(&CRefLink.LinksObjectName);
+            
+            If &cref.IsLink Then
+               &CRefLink = &Portal.FindCRefLinkByName(&cref.Name);
+               &cref = &Portal.FindCRefByName(&CRefLink.LinksObjectName);
+            End-If;
+            
+            &Portal.close();
+            If &cref = Null Then
+               Return;
+            End-If;
+            
+            If &Label = "" Then
+               &Label = &cref.Label;
+            End-If;
+            If &Description = "" Then
+               &Description = &cref.Description;
+            End-If;
+            If &CRefSeqNum = 0 Then
+               &CRefSeqNum = &cref.SequenceNumber;
+            End-If;
+         End-If;
+         
+      catch Exception &ex
+      end-try;
+   End-If;
+   
+   If &SeqNum = 1 Then
+      &SeqNum = &CRefSeqNum;
+      &ColNum = SetColNum(&SeqNum);
+      &RowNum = SetRowNum(&SeqNum);
+   End-If;
+   
+   &DisplayIn = &cref.DisplayIn;
+   &DisplayModalParams = &cref.DisplaymodalParams;
+   
+   If (Lower(getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_DEFAULT_MODAL_TITLE)) = &cstTRUE) Then
+      &DefaultModalTitle = &cref.Attributes.ItemByName(&cstCREF_ATTRIBUTE_DEFAULT_MODAL_TITLE).Label;
+   Else
+      &DefaultModalTitle = "";
+   End-If;
+   
+   &IsSmallFFOptimized = &cref.IsSmallFFOptimized;
+   &IsFluid = &cref.IsFluid;
+   &GltContentUrl = &cref.GroupletContentURL;
+   &GltContentActionUrl = &cref.AbsoluteContentURL;
+   &GltPortalActionUrl = &cref.AbsolutePortalURL;
+   &GltId = &cref.GroupletId;
+   &GltImageName = &cref.GroupletImageName;
+   &GltPageName = &cref.GroupletPageName;
+   rem force size to be smaller than 2x2;
+   &Width = &cref.GroupletWidth;
+   If &Width = 0 Then
+      &Width = 1;
+   End-If;
+   If &Width > 8 Then
+      &Width = 8;
+   End-If;
+   &Height = &cref.GroupletHeight;
+   If &Height = 0 Then
+      &Height = 1;
+   End-If;
+   If &Height > 8 Then
+      &Height = 8;
+   End-If;
+   
+   &GltType = &cref.GroupletType;
+   If &GltType = 0 Then
+      &GltType = 2;
+   End-If;
+   &GltTimer = &cref.GroupletTimer;
+   &GltEventName = &cref.EventName;
+   
+   rem force minimum 5 second timer;
+   If &GltTimer <> 0 And
+         &GltTimer < 5 Then
+      &GltTimer = 5;
+   End-If;
+   &GltURLType = &cref.GroupletURLType;
+   If &GltURLType = "" Then
+      &GltURLType = "NONE";
+   End-If;
+   &GltContentProvider = &cref.GroupletContentProvider;
+   If &GltContentProvider = &cstLOCAL_NODE Then
+      &GltContentProvider = &NodeName;
+   End-If;
+   &GltURL = &cref.GroupletURL;
+   
+   If &cref.TemplateType = "NONE" Then
+      &UsePSC = True;
+   Else
+      &UsePSC = False;
+   End-If;
+   
+   &HasGrouplet = &cref.HasGrouplet;
+   
+   &CategoryName = &cref.ParentName;
+   &CategoryLabel = "";
+   &UsageType = &cref.UsageType;
+   &URLType = &cref.URLType;
+   &ContentProvider = &cref.ContentProvider;
+   If &ContentProvider = &cstLOCAL_NODE Then
+      &ContentProvider = &NodeName;
+   End-If;
+   &URL = &cref.URL;
+   &TemplateType = &cref.TemplateType;
+   &Template = &cref.Template;
+   &OwnerId = &cref.OwnerId;
+   &Product = &cref.Product;
+   &Keywords = getCRefKeywords(&cref, %Language);
+   &ValidFrom = &cref.ValidFrom;
+   &ValidTo = &cref.ValidTo;
+   &AltWidth = &cref.GroupletAltWidth;
+   &AltHeight = &cref.GroupletAltHeight;
+   If &AltWidth <> 0 And
+         &AltHeight <> 0 Then
+      &IsResizeable = True;
+   End-If;
+   If &cref.GroupletAutoSize = "Y" Then
+      &IsAutoSize = True;
+   Else
+      &IsAutoSize = False;
+   End-If;
+   If &cref.GroupletDisableHotspot = "Y" Then
+      &IsHotspotEnabled = False;
+   Else
+      &IsHotspotEnabled = True;
+   End-If;
+   
+   &IsRemote = False;
+   &RemoteNodeName = "";
+   &RemotePortalName = "";
+   &RemoteCRefName = "";
+   
+   &IsClusterAwareTile = (Lower(getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_CLUSTER_AWARE_TILE)) = &cstTRUE);
+   Local string &nbAttrValue = Lower(getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_NAVBAR_TILE));
+   Local string &hpAttrValue = Lower(getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_HOMEPAGE_TILE));
+   Local string &dbAttrValue = Lower(getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_DASHBOARD_TILE));
+   If &nbAttrValue = "" And
+         &hpAttrValue = "" And
+         &dbAttrValue = "" Then
+      &IsNavbarTile = True;
+      &IsHomepageTile = True;
+      &IsDashboardTile = True;
+   Else
+      &IsNavbarTile = (&nbAttrValue = &cstTRUE);
+      &IsHomepageTile = (&hpAttrValue = &cstTRUE);
+      &IsDashboardTile = (&dbAttrValue = &cstTRUE);
+   End-If;
+   &IsPinnedTile = False;
+   
+   &location = getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_LOCATION);
+   If (&location = &cstCREF_ATTRIBUTE_VALUE_REMOTE) Then
+      
+      &remodeNode = getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_NODE);
+      &remotePortal = getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_PORTAL);
+      &remoteCRef = getCRefAttribute(&cref, &cstCREF_ATTRIBUTE_CREFID);
+      
+      If All(&remodeNode, &remotePortal, &remoteCRef) And
+            IsRemotePIANode(&remodeNode) Then
+         /* Only set the flag when all uni-nav attributes are presented and the node is a remote node */
+         &IsRemote = True;
+         &RemoteNodeName = &remodeNode;
+         &RemotePortalName = &remotePortal;
+         &RemoteCRefName = &remoteCRef;
+      End-If;
+      
+   End-If;
+   
+end-method;
+
+method SetPropertiesToCref
+   /+ &cref as ApiObject +/
+   
+   Local ApiObject &crefAttr;
+   
+   If &cref = Null Then
+      Return;
+   End-If;
+   
+   /* CRef Properties */
+   &cref.Label = %This.Label;
+   &cref.Description = %This.Description;
+   
+   &cref.OwnerId = %This.OwnerId;
+   &cref.Product = %This.Product;
+   &cref.SequenceNumber = %This.CRefSeqNum;
+   &cref.ValidFrom = %This.ValidFrom;
+   &cref.ValidTo = %This.ValidTo;
+   &cref.PublicAccess = True;
+   &cref.AuthorAccess = False;
+   
+   If (%This.UsageType = "LINK") Then
+      &cref.UsageType = "TARG";
+      &cref.URLType = "UGEN";
+   Else
+      &cref.UsageType = %This.UsageType;
+      &cref.URLType = %This.URLType;
+   End-If;
+   &cref.ContentProvider = %This.ContentProvider;
+   &cref.URL = %This.URL;
+   
+   &cref.TemplateType = %This.TemplateType;
+   &cref.Template = %This.Template;
+   
+   
+   /* Grouplet Properties */
+   &cref.HasGrouplet = %This.HasGrouplet;
+   
+   &cref.IsFluid = %This.IsFluid;
+   &cref.IsSmallFFOptimized = %This.IsSmallFFOptimized;
+   &cref.GroupletId = %This.GltId;
+   &cref.GroupletImageName = %This.GltImageName;
+   &cref.GroupletPageName = %This.GltPageName;
+   &cref.GroupletWidth = %This.Width;
+   &cref.GroupletHeight = %This.Height;
+   &cref.GroupletAltWidth = %This.AltWidth;
+   &cref.GroupletAltHeight = %This.AltHeight;
+   &cref.GroupletType = %This.GltType;
+   &cref.GroupletTimer = %This.GltTimer;
+   &cref.EventName = %This.GltEventName;
+   &cref.DisplayIn = %This.DisplayIn;
+   &cref.DisplayModalParams = %This.DisplayModalParams;
+   
+   If (&DefaultModalTitle <> "") Then
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_DEFAULT_MODAL_TITLE, &cstTRUE);
+      &crefAttr.Translatable = True;
+      &crefAttr.Label = &DefaultModalTitle;
+   Else
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_DEFAULT_MODAL_TITLE, &cstFALSE);
+   End-If;
+   
+   If %This.IsAutoSize Then
+      &cref.GroupletAutoSize = "Y";
+   Else
+      &cref.GroupletAutoSize = "N";
+   End-If;
+   If %This.IsHotspotEnabled Then
+      &cref.GroupletDisableHotspot = "N";
+   Else
+      &cref.GroupletDisableHotspot = "Y";
+   End-If;
+   
+   &cref.GroupletURLType = %This.GltURLType;
+   If (%This.GltURLType <> "NONE") Then
+      &cref.GroupletContentProvider = %This.GltContentProvider;
+      &cref.GroupletURL = %This.GltURL;
+   End-If;
+   
+   
+   /* Remote CRef Flags */
+   If %This.IsRemote Then
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_LOCATION, &cstCREF_ATTRIBUTE_VALUE_REMOTE);
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_NODE, %This.RemoteNodeName);
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_PORTAL, %This.RemotePortalName);
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_CREFID, %This.RemoteCRefName);
+   End-If;
+   
+   If (%This.IsClusterAwareTile) Then
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_CLUSTER_AWARE_TILE, &cstTRUE);
+   Else
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_CLUSTER_AWARE_TILE, &cstFALSE);
+   End-If;
+   If (%This.IsNavbarTile) Then
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_NAVBAR_TILE, &cstTRUE);
+   Else
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_NAVBAR_TILE, &cstFALSE);
+   End-If;
+   If (%This.IsHomepageTile) Then
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_HOMEPAGE_TILE, &cstTRUE);
+   Else
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_HOMEPAGE_TILE, &cstFALSE);
+   End-If;
+   If (%This.IsDashboardTile) Then
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_DASHBOARD_TILE, &cstTRUE);
+   Else
+      &crefAttr = setCRefAttribute(&cref, &cstCREF_ATTRIBUTE_DASHBOARD_TILE, &cstFALSE);
+   End-If;
+end-method;
+
+method SetPropertiesFromPinnedPglt
+   /+ &pinnedPglt as Record +/
+   
+   Local string &pinnedUrl, &pageletCRefNode, &pageletCRefName;
+   Local string &baseUrl, &portalUrl, &contentUrl;
+   
+   Local array of string &nodeURLs, &urlParts;
+   
+   If None(&pinnedPglt) Then
+      Return;
+   End-If;
+   
+   %This.IsPinnedTile = True;
+   
+   If (&pinnedPglt.PORTAL_LABEL.Value <> "") Then
+      %This.Label = &pinnedPglt.PORTAL_LABEL.Value;
+   End-If;
+   %This.SeqNum = &pinnedPglt.PORTAL_SEQ_NUM.Value;
+   
+   &pinnedUrl = EncodeURL(&pinnedPglt.PORTAL_URLTEXT.Value);
+   
+   &pageletCRefNode = &pinnedPglt.PORTAL_HOSTNODENAM.Value;
+   &pageletCRefName = &pinnedPglt.PORTAL_CREF_NAME.Value;
+   
+   %This.GltPlusURLParam = &pinnedPglt.PTTILEURLPARAM.Value;
+   If (%This.GltContentUrl <> "") And
+         (%This.GltPlusURLParam <> "") Then
+      If (Find("?", %This.GltContentUrl) <= 0) Then
+         %This.GltContentUrl = %This.GltContentUrl | "?";
+      Else
+         If (Right(%This.GltContentUrl, 1) <> "&") Then
+            %This.GltContentUrl = %This.GltContentUrl | "&";
+         End-If;
+      End-If;
+      %This.GltContentUrl = %This.GltContentUrl | EncodeURL(%This.GltPlusURLParam); /* encode the Tile URL Param */
+   End-If;
+   
+   If All(&pinnedUrl) Then
+      &portalUrl = &pinnedUrl;
+      &contentUrl = &pinnedUrl;
+      &urlParts = Split(&pinnedUrl, "/");
+      Local integer &arrIdxSrvlt = 0;
+      Local integer &j;
+      For &j = 1 To &urlParts.Len
+         If (&urlParts [&j] = "psc") Or
+               (&urlParts [&j] = "psp") Then
+            &arrIdxSrvlt = &j;
+            Break;
+         End-If;
+      End-For;
+      
+      If All(&pageletCRefNode) And
+            (&arrIdxSrvlt <> 0) Then
+         /* peoplesoft type URL */
+         &nodeURLs = GetNodeURL(&pageletCRefNode);
+         If All(&nodeURLs) And
+               (&arrIdxSrvlt <> 0) Then
+            &nodeURLs [1] = StripSiteNewWin("psp", &nodeURLs [1]);
+            &nodeURLs [2] = StripSiteNewWin("psc", &nodeURLs [2]);
+            /* Drop the server parts */
+            &urlParts.Replace(1, &arrIdxSrvlt + 1);
+            &baseUrl = &urlParts.Join("/", "", "");
+            /* Reposition the URL */
+            &portalUrl = RTrim(&nodeURLs [1], " /") | "/" | &baseUrl;
+            &contentUrl = RTrim(&nodeURLs [2], " /") | "/" | &baseUrl;
+         End-If;
+      End-If;
+      %This.GltContentActionUrl = &contentUrl;
+      %This.GltPortalActionUrl = &portalUrl;
+      %This.UsePSC = (Find("/psc/", &pinnedUrl) > 0);
+   End-If;
+   
+   If All(&pageletCRefNode, &pageletCRefName) Then
+      %This.IsRemote = IsRemotePIANode(&pageletCRefNode);
+      %This.RemoteNodeName = &pageletCRefNode;
+      %This.RemotePortalName = %This.PortalName;
+      %This.RemoteCRefName = &pageletCRefName;
+   End-If;
+   
+end-method;
+
+method SetPropertiesToPinnedPglt
+   /+ &pinnedPglt as Record +/
+   
+   Local string &pinnedUrl;
+   
+   If None(&pinnedPglt) Then
+      Return;
+   End-If;
+   
+   &pinnedPglt.PORTAL_LABEL.Value = %This.Label;
+   &pinnedPglt.PORTAL_SEQ_NUM.Value = %This.SeqNum;
+   
+   &pinnedPglt.PORTAL_HOSTNODENAM.Value = %This.RemoteNodeName;
+   &pinnedPglt.PORTAL_CREF_NAME.Value = %This.RemoteCRefName;
+   &pinnedPglt.PTTILEURLPARAM.Value = %This.GltPlusURLParam;
+   
+   If (%This.UsePSC) Then
+      &pinnedUrl = %This.GltContentActionUrl;
+   Else
+      &pinnedUrl = %This.GltPortalActionUrl;
+   End-If;
+   &pinnedPglt.PORTAL_URLTEXT.Value = Unencode(&pinnedUrl); /* save URL in DB as unencoded */
+   
+end-method;
+
+method setBehaviors
+   /+ &lb as String +/
+   &LayoutBehavior = &lb;
+   If &lb = "1FIX" Or
+         &lb = "2REQ" Then
+      &IsRemoveable = False;
+   Else
+      &IsRemoveable = True;
+   End-If;
+end-method;
+
+method SetPropertiesFromSelPglt
+   /+ &selPglt as ApiObject +/
+   &RowNum = &selPglt.Row;
+   &ColNum = &selPglt.Column;
+   &SeqNum = SetSeqNum(&RowNum, &ColNum);
+   If (&SeqNum < 0) Then
+      &SeqNum = 0;
+   End-If;
+end-method;
+
+method SetPropertiesFromAvailPglt
+   /+ &availPglt as ApiObject +/
+   &LayoutBehavior = &availPglt.LayoutBehavior;
+   %This.setBehaviors(&LayoutBehavior);
+end-method;
+
+method SetPropertiesFromAssignedPglt
+   /+ &assignPglt as ApiObject +/
+   &LayoutBehavior = &assignPglt.LayoutBehavior;
+   %This.setBehaviors(&LayoutBehavior);
+end-method;
+
+method SetPropertiesFromRec
+   /+ &rec as Record +/
+   &SeqNum = &rec.PORTAL_SEQ_NUM.Value;
+   
+   &RowNum = SetRowNum(&SeqNum);
+   &ColNum = SetColNum(&SeqNum);
+   rem AddOnLoadScript("console.log('Save Grouplet: " | %This.ID | " SeqNum: " | &SeqNum | " Row: " | &RowNum | " Col: " | &ColNum | "')");
+   
+   /*
+   Those should already being filled in 
+   &GltContentUrl = &rec.LP_GRP_URL.Value;
+   &GltContentActionUrl = &rec.LP_GRP_ACTN_URL.Value;
+   &GltId = &rec.GROUPLET_ID.Value;
+   &GltImageName = &rec.IMAGE_NAME.Value;
+   */
+   
+   If &SeqNum = 0 Then
+      &MarkedForDelete = True;
+   End-If;
+end-method;
+
+method MergeSystemData
+   /+ &tSys as PTNUI:Model:Tile +/
+   &LayoutBehavior = &tSys.LayoutBehavior;
+   %This.setBehaviors(&tSys.LayoutBehavior);
+end-method;
+
+method debug
+   Local string &outStr = %This.debugString();
+   AddOnLoadScript("console.log(' " | &outStr | " ')");
+end-method;
+
+method debugString
+   /+ Returns String +/
+   Local string &outStr;
+   &outStr = &outStr | "NodeName     : " | EscapeJavascriptString(&NodeName) | "\n";
+   &outStr = &outStr | "PortalName   : " | EscapeJavascriptString(&PortalName) | "\n";
+   &outStr = &outStr | "TileName     : " | EscapeJavascriptString(&TileName) | "\n";
+   &outStr = &outStr | "Label        : " | EscapeJavascriptString(&Label) | "\n";
+   rem   &outStr = &outStr | "crefName     : " | EscapeJavascriptString(&CrefName) | "\n";
+   &outStr = &outStr | "gltContentUrl   : " | EscapeJavascriptString(&GltContentUrl) | "\n";
+   &outStr = &outStr | "gltPSCActionUrl : " | EscapeJavascriptString(&GltContentActionUrl) | "\n";
+   &outStr = &outStr | "gltPSPActionUrl : " | EscapeJavascriptString(&GltPortalActionUrl) | "\n";
+   &outStr = &outStr | "gltId        : " | EscapeJavascriptString(&GltId) | "\n";
+   &outStr = &outStr | "gltImageName : " | EscapeJavascriptString(&GltImageName) | "\n";
+   &outStr = &outStr | "LayoutBehavior : " | &LayoutBehavior | "\n";
+   &outStr = &outStr | "seqNum       : " | &SeqNum | "\n";
+   &outStr = &outStr | "Row, Column     : " | &RowNum | "," | &ColNum | "\n";
+   rem   &outStr = &outStr | "width        : " | &Width | "\n";
+   rem   &outStr = &outStr | "height       : " | &Height | "\n";
+   &outStr = &outStr | "ClusterAwareTile : " | String(&IsClusterAwareTile) | "\n";
+   &outStr = &outStr | "NavBarTile       : " | String(&IsNavbarTile) | "\n";
+   &outStr = &outStr | "HomepageTile     : " | String(&IsHomepageTile) | "\n";
+   &outStr = &outStr | "DashboardTile     : " | String(&IsDashboardTile) | "\n";
+   &outStr = &outStr | "PinnedTile       : " | String(&IsPinnedTile) | "\n";
+   &outStr = &outStr | "RemoteNodeName   : " | EscapeJavascriptString(&RemoteNodeName) | "\n";
+   &outStr = &outStr | "RemotePortalName : " | EscapeJavascriptString(&RemotePortalName) | "\n";
+   &outStr = &outStr | "RemoteName       : " | EscapeJavascriptString(&RemoteCRefName) | "\n";
+   &outStr = &outStr | "NetworkNodeName  : " | EscapeJavascriptString(&NetworkNodeName) | "\n";
+   &outStr = &outStr | "MarkedForDelete: " | &MarkedForDelete | "\n";
+   Return &outStr;
+end-method;
+
+method toXML
+   /+ &pXmlNode as XmlNode +/
+   
+   If All(&pXmlNode) Then
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_NODE_NAME, %This.NodeName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, %This.PortalName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_TILE_NAME, %This.TileName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LABEL, %This.Label);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_DESCRIPTION, %This.Description);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_CREF_SEQ_NUM, String(%This.CRefSeqNum));
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_CONTENT_URL, %This.GltContentUrl);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_ACTION_CONTENT_URL, %This.GltContentActionUrl);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_ACTION_PORTAL_URL, %This.GltPortalActionUrl);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_PLUS_URL_PARAM, %This.GltPlusURLParam);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_ID, %This.GltId);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_IMAGE_NAME, %This.GltImageName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_PAGE_NAME, %This.GltPageName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_URL_TYPE, %This.GltURLType);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_CONTENT_PROVIDER, %This.GltContentProvider);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_URL, %This.GltURL);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_TYPE, String(%This.GltType));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_TIMER, String(%This.GltTimer));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_GROUPLET_EVENTNAME, String(%This.GltEventName));
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_SEQ_NUM, String(%This.SeqNum));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_ROW_NUM, String(%This.RowNum));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_COLUMN_NUM, String(%This.ColNum));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_WIDTH, String(%This.Width));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_HEIGHT, String(%This.Height));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_ALTWIDTH, String(%This.AltWidth));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_ALTHEIGHT, String(%This.AltHeight));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_DISPLAY_IN, String(%This.DisplayIn));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_DISPLAY_MODAL_PARAMS, %This.DisplayModalParams);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_DEFAULT_MODAL_TITLE, %This.DefaultModalTitle);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_SFF, String(%This.IsSmallFFOptimized));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_FLUID, String(%This.IsFluid));
+      
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LAYOUT_BEHAVIOR, %This.LayoutBehavior);
+      If %This.IsRemoveable Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOVEABLE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOVEABLE, &cstFALSE);
+      End-If;
+      If %This.HasGrouplet Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_HAS_GROUPLET, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_HAS_GROUPLET, &cstFALSE);
+      End-If;
+      If %This.UsePSC Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_USE_PSC, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_USE_PSC, &cstFALSE);
+      End-If;
+      
+      If %This.IsAutoSize Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_AUTOSIZE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_AUTOSIZE, &cstFALSE);
+      End-If;
+      If %This.IsResizeable Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_RESIZEABLE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_RESIZEABLE, &cstFALSE);
+      End-If;
+      If %This.IsHotspotEnabled Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_HOTSPOT_ENABLED, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_HOTSPOT_ENABLED, &cstFALSE);
+      End-If;
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_CATEGORY_NAME, %This.CategoryName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_CATEGORY_LABEL, %This.CategoryLabel);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_USAGE_TYPE, %This.UsageType);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_URL_TYPE, %This.URLType);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_CONTENT_PROVIDER, %This.ContentProvider);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_URL, %This.URL);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_TEMPLATE_TYPE, %This.TemplateType);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_TEMPLATE, %This.Template);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_OWNER_ID, %This.OwnerId);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_PRODUCT, %This.Product);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_KEYWORDS, %This.Keywords);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_VALID_FROM, %This.ValidFrom);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_VALID_TO, %This.ValidTo);
+      
+      If %This.IsRemote Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOTE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOTE, &cstFALSE);
+      End-If;
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_NODE_NAME, %This.RemoteNodeName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME, %This.RemotePortalName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_CREF_NAME, %This.RemoteCRefName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_NETWORK_NODE_NAME, %This.NetworkNodeName);
+      
+      If %This.IsClusterAwareTile Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_CLUSTER_AWARE_TILE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_CLUSTER_AWARE_TILE, &cstFALSE);
+      End-If;
+      If %This.IsNavbarTile Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_NAVBAR_TILE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_NAVBAR_TILE, &cstFALSE);
+      End-If;
+      If %This.IsHomepageTile Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_HOMEPAGE_TILE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_HOMEPAGE_TILE, &cstFALSE);
+      End-If;
+      If %This.IsDashboardTile Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_DASHBOARD_TILE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_DASHBOARD_TILE, &cstFALSE);
+      End-If;
+      If %This.IsPinnedTile Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_PINNED_TILE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_PINNED_TILE, &cstFALSE);
+      End-If;
+      
+      If %This.MarkedForDelete Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_MARKED_FOR_DELETE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_MARKED_FOR_DELETE, &cstFALSE);
+      End-If;
+      
+   End-If;
+   
+end-method;
+
+
+method fromXML
+   /+ &pXmlNode as XmlNode +/
+   
+   If All(&pXmlNode) Then
+      
+      &NodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NODE_NAME);
+      &PortalName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+      &TileName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_TILE_NAME);
+      %This.Label = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LABEL);
+      %This.Description = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_DESCRIPTION);
+      %This.CRefSeqNum = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_CREF_SEQ_NUM));
+      
+      %This.GltContentUrl = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_CONTENT_URL);
+      %This.GltContentActionUrl = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_ACTION_CONTENT_URL);
+      %This.GltPortalActionUrl = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_ACTION_PORTAL_URL);
+      %This.GltPlusURLParam = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_PLUS_URL_PARAM);
+      %This.GltId = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_ID);
+      %This.GltImageName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_IMAGE_NAME);
+      %This.GltPageName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_PAGE_NAME);
+      %This.GltURLType = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_URL_TYPE);
+      %This.GltContentProvider = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_CONTENT_PROVIDER);
+      %This.GltURL = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_URL);
+      %This.GltType = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_TYPE));
+      %This.GltTimer = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_TIMER));
+      %This.GltEventName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_GROUPLET_EVENTNAME);
+      
+      %This.SeqNum = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_SEQ_NUM));
+      %This.RowNum = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_ROW_NUM));
+      %This.ColNum = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_COLUMN_NUM));
+      %This.Width = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_WIDTH));
+      %This.Height = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_HEIGHT));
+      %This.AltWidth = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_ALTWIDTH));
+      %This.AltHeight = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_ALTHEIGHT));
+      
+      %This.DisplayIn = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_DISPLAY_IN));
+      %This.DisplayModalParams = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_DISPLAY_MODAL_PARAMS);
+      %This.DefaultModalTitle = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_DEFAULT_MODAL_TITLE);
+      %This.IsSmallFFOptimized = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_SFF));
+      %This.IsFluid = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_FLUID));
+      
+      %This.IsAutoSize = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_AUTOSIZE) = &cstTRUE);
+      %This.IsResizeable = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_RESIZEABLE) = &cstTRUE);
+      %This.IsHotspotEnabled = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_HOTSPOT_ENABLED) <> &cstFALSE);
+      
+      %This.LayoutBehavior = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LAYOUT_BEHAVIOR);
+      %This.IsRemoveable = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_REMOVEABLE) = &cstTRUE);
+      %This.HasGrouplet = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_HAS_GROUPLET) = &cstTRUE);
+      %This.UsePSC = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_USE_PSC) = &cstTRUE);
+      
+      %This.CategoryName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_CATEGORY_NAME);
+      %This.CategoryLabel = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_CATEGORY_LABEL);
+      %This.UsageType = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_USAGE_TYPE);
+      %This.URLType = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_URL_TYPE);
+      %This.ContentProvider = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_CONTENT_PROVIDER);
+      %This.URL = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_URL);
+      %This.TemplateType = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_TEMPLATE_TYPE);
+      %This.Template = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_TEMPLATE);
+      %This.OwnerId = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_OWNER_ID);
+      %This.Product = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PRODUCT);
+      %This.Keywords = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_KEYWORDS);
+      %This.ValidFrom = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_VALID_FROM);
+      %This.ValidTo = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_VALID_TO);
+      
+      %This.IsRemote = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_REMOTE) = &cstTRUE);
+      %This.RemoteNodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_NODE_NAME);
+      %This.RemotePortalName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME);
+      %This.RemoteCRefName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_CREF_NAME);
+      %This.NetworkNodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NETWORK_NODE_NAME);
+      
+      %This.IsClusterAwareTile = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_CLUSTER_AWARE_TILE) = &cstTRUE);
+      %This.IsNavbarTile = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_NAVBAR_TILE) = &cstTRUE);
+      %This.IsHomepageTile = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_HOMEPAGE_TILE) = &cstTRUE);
+      %This.IsDashboardTile = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_DASHBOARD_TILE) = &cstTRUE);
+      %This.IsPinnedTile = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_PINNED_TILE) = &cstTRUE);
+      
+      %This.MarkedForDelete = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_MARKED_FOR_DELETE) = &cstTRUE);
+      
+   End-If;
+   
+end-method;
+
+/**
+  * Clone the object
+  *
+  * @return Tile object
+  *
+  */
+method clone
+   /+ Returns PTNUI:Model:Tile +/
+   
+   Local PTNUI:Model:Tile &newObj;
+   
+   &newObj = create PTNUI:Model:Tile(%This.NodeName, %This.PortalName, %This.TileName, %This.Label);
+   
+   &newObj.Description = %This.Description;
+   &newObj.CRefSeqNum = %This.CRefSeqNum;
+   
+   &newObj.GltContentUrl = %This.GltContentUrl;
+   &newObj.GltContentActionUrl = %This.GltContentActionUrl;
+   &newObj.GltPortalActionUrl = %This.GltPortalActionUrl;
+   &newObj.GltPlusURLParam = %This.GltPlusURLParam;
+   &newObj.GltId = %This.GltId;
+   &newObj.GltImageName = %This.GltImageName;
+   &newObj.GltPageName = %This.GltPageName;
+   &newObj.GltURLType = %This.GltURLType;
+   &newObj.GltContentProvider = %This.GltContentProvider;
+   &newObj.GltURL = %This.GltURL;
+   &newObj.GltType = %This.GltType;
+   &newObj.GltTimer = %This.GltTimer;
+   &newObj.GltEventName = %This.GltEventName;
+   
+   &newObj.SeqNum = %This.SeqNum;
+   &newObj.RowNum = %This.RowNum;
+   &newObj.ColNum = %This.ColNum;
+   &newObj.Width = %This.Width;
+   &newObj.Height = %This.Height;
+   &newObj.AltWidth = %This.AltWidth;
+   &newObj.AltHeight = %This.AltHeight;
+   &newObj.DisplayIn = %This.DisplayIn;
+   &newObj.DisplayModalParams = %This.DisplayModalParams;
+   &newObj.DefaultModalTitle = %This.DefaultModalTitle;
+   &newObj.IsSmallFFOptimized = %This.IsSmallFFOptimized;
+   &newObj.IsFluid = %This.IsFluid;
+   &newObj.IsAutoSize = %This.IsAutoSize;
+   &newObj.IsResizeable = %This.IsResizeable;
+   &newObj.IsHotspotEnabled = %This.IsHotspotEnabled;
+   
+   &newObj.LayoutBehavior = %This.LayoutBehavior;
+   &newObj.IsRemoveable = %This.IsRemoveable;
+   &newObj.HasGrouplet = %This.HasGrouplet;
+   &newObj.UsePSC = %This.UsePSC;
+   
+   &newObj.CategoryName = %This.CategoryName;
+   &newObj.CategoryLabel = %This.CategoryLabel;
+   &newObj.UsageType = %This.UsageType;
+   &newObj.URLType = %This.URLType;
+   &newObj.ContentProvider = %This.ContentProvider;
+   &newObj.URL = %This.URL;
+   &newObj.TemplateType = %This.TemplateType;
+   &newObj.Template = %This.Template;
+   &newObj.OwnerId = %This.OwnerId;
+   &newObj.Product = %This.Product;
+   &newObj.Keywords = %This.Keywords;
+   &newObj.ValidFrom = %This.ValidFrom;
+   &newObj.ValidTo = %This.ValidTo;
+   
+   &newObj.IsRemote = %This.IsRemote;
+   &newObj.RemoteNodeName = %This.RemoteNodeName;
+   &newObj.RemotePortalName = %This.RemotePortalName;
+   &newObj.RemoteCRefName = %This.RemoteCRefName;
+   &newObj.NetworkNodeName = %This.NetworkNodeName;
+   
+   &newObj.IsClusterAwareTile = %This.IsClusterAwareTile;
+   &newObj.IsNavbarTile = %This.IsNavbarTile;
+   &newObj.IsHomepageTile = %This.IsHomepageTile;
+   &newObj.IsDashboardTile = %This.IsDashboardTile;
+   &newObj.IsPinnedTile = %This.IsPinnedTile;
+   
+   &newObj.MarkedForDelete = %This.MarkedForDelete;
+   
+   Return &newObj;
+   
+end-method;
+
+/**
+  * Evaluates whether two tiles pointing to the same target.
+  * Note:  for local tiles, ID is used for comparing.  fro remote tiles, the remote ID is used.
+  *
+  * @param pTile     the object to compare to.
+  *
+  * @return boolean - true if find match, otherwise false
+  *
+  */
+method equals
+   /+ &pTile as PTNUI:Model:Tile +/
+   /+ Returns Boolean +/
+   
+   Local string &id1, &id2;
+   
+   If %This.IsPinnedTile Or
+         &pTile.IsPinnedTile Then
+      Return (%This.TileName = &pTile.TileName);
+   End-If;
+   
+   If %This.IsRemote Then
+      &id1 = %This.RemoteID;
+   Else
+      &id1 = %This.ID;
+   End-If;
+   
+   If &pTile.IsRemote Then
+      &id2 = &pTile.RemoteID;
+   Else
+      &id2 = &pTile.ID;
+   End-If;
+   
+   Return (&id1 = &id2);
+   
+end-method;
+
+get ID
+   /+ Returns String +/
+   Return &NodeName | "." | &PortalName | "." | &TileName;
+end-get;
+
+
+get RemoteID
+   /+ Returns String +/
+   If %This.IsRemote Then
+      Return &RemoteNodeName | "." | &RemotePortalName | "." | &RemoteCRefName;
+   Else
+      Return "";
+   End-If;
+end-get;
+

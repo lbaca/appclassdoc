@@ -1,0 +1,438 @@
+import PTNUI:NavBarContentArea:NBContent;
+import PTNUI:NavBarContentArea:NBContentCollection;
+import PTUN_UNINAV:RemoteMenu:*;
+import PTUN_UNINAV:UTILITY:*;
+import PT_NAV2:NavOptions;
+
+class Menu extends PTNUI:NavBarContentArea:NBContentCollection
+   method Menu(&folderName As string);
+   method GetBackURL() Returns string;
+   method GetRootURL() Returns string;
+   method RowClicked(&content As PTNUI:NavBarContentArea:NBContent);
+   property string RFldrPrnt;
+   property string RFldrPrntLbl;
+   property string FolderLabel;
+   property string ParentFolderName;
+   property string ParentFolderLabel;
+   property string CacheId;
+private
+   method IsUniNavFolder(&portal As ApiObject, &folderName As string) Returns boolean;
+   method LoadLocalMenu(&portal As ApiObject, &folderName As string);
+   method LoadRemoteMenu(&portal As ApiObject, &folderName As string, &RemRootFldr As string);
+   method RemoteFolderAcess(&folder As ApiObject) Returns string;
+   instance string &standalone;
+end-class;
+
+Declare Function PortalOpen PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function SetContentArea PeopleCode PTNUI_DOCK_REC.PTNUI_NB_ACTION FieldFormula;
+Declare Function GetLocalNodeContentURI PeopleCode PTNUI_NB_WRK.FUNCLIB FieldFormula;
+Declare Function CheckUnFldrAccess PeopleCode FUNCLIB_PTUN.FUNCLIB FieldFormula;
+
+
+Declare Function getPortalHostNodeURI PeopleCode FUNCLIB_PTUN.FUNCLIB FieldFormula;
+
+Component PTNUI:NavBarContentArea:NBContentCollection &ptnui_CurContentColl;
+Component string &RFolderName, &RFolderList;
+
+Global string &G_pgmode;
+
+method Menu
+   /+ &folderName as String +/;
+   %Super = create PTNUI:NavBarContentArea:NBContentCollection();
+   
+   Local ApiObject &Portal = %Session.GetPortalRegistry();
+   If Not &Portal.Open(%Portal) Then
+      Error MsgGet(95, 5021, "Error opening portal: %1.", %Portal);
+   End-If;
+   
+   If &folderName = "" Then
+      rem default folder if empty;
+      &folderName = "PORTAL_ROOT_OBJECT";
+      &ParentFolderName = "";
+      &ParentFolderLabel = "";
+   End-If;
+   &standalone = %Request.GetParameter("sa");
+   
+   rem check if already remote folder;
+   Local string &IsRemote = "N";
+   Local string &RootFldr = "NA";
+   
+   &IsRemote = %Request.GetParameter("UNINAV");
+   If &IsRemote = "Y" Then
+      Local string &RemoteNode = %Request.GetParameter("UNNODE");
+      &folderName = &RemoteNode | ":" | &folderName;
+      &RootFldr = "N";
+   Else
+      rem check if current local folder points to a remote folder;
+      If %This.IsUniNavFolder(&Portal, &folderName) Then
+         &IsRemote = "Y";
+         &RootFldr = "Y";
+      End-If;
+   End-If;
+   &CacheId = &folderName;
+   
+   Local ApiObject &f;
+   If &IsRemote = "Y" Then
+      %This.LoadRemoteMenu(&Portal, &folderName, &RootFldr);
+      If &RootFldr = "Y" Then
+         &f = &Portal.FindFolderByname(&folderName);
+         &FolderLabel = &f.Label;
+         &ParentFolderName = &f.ParentName;
+         &f = &Portal.FindFolderByName(&ParentFolderName);
+         &ParentFolderLabel = &f.Label;
+      End-If;
+      
+   Else
+      %This.LoadLocalMenu(&Portal, &folderName);
+      If &folderName <> "PORTAL_ROOT_OBJECT" Then
+         &f = &Portal.FindFolderByname(&folderName);
+         &ParentFolderName = &f.ParentName;
+         &f = &Portal.FindFolderByName(&ParentFolderName);
+         &ParentFolderLabel = &f.Label;
+      End-If;
+   End-If;
+   
+   &Portal.close();
+end-method;
+
+method GetBackURL
+   /+ Returns String +/
+   Local string &url = GetLocalNodeContentURI() | "/c/NUI_FRAMEWORK.PTNUI_MENU_COMP.GBL?sa=" | &standalone | "&FLDR=";
+   
+   Local string &IsRemote = %Request.GetParameter("UNINAV");
+   Local string &RemoteNode = %Request.GetParameter("UNNODE");
+   Local string &RFolderListP = %Request.GetParameter("RFolderList");
+   Local string &RFolderNameP = %Request.GetParameter("RFolder");
+   Local string &backFolderName = &ParentFolderName;
+   
+   If &IsRemote = "Y" Then
+      &RFolderList = &RFolderListP;
+      &RFolderName = &RFolderNameP;
+      If Find(&RemoteNode | ":" | &ParentFolderName, &RFolderList) > 0 Then
+         &url = &url | EscapeHTML(&RFolderName);
+         &backFolderName = &RFolderName;
+      Else
+         &url = &url | EscapeHTML(&ParentFolderName) | "&UNINAV=Y&UNNODE=" | EscapeHTML(&RemoteNode) | "&RFolder=" | &RFolderName | "&RFolderList=" | &RFolderList;
+         &backFolderName = &RemoteNode | ":" | &ParentFolderName;
+      End-If;
+   Else
+      &url = &url | &ParentFolderName;
+   End-If;
+   
+   If &standalone <> "y" Then
+      &url = "javascript:PTNavBar.OpenInContentArea('" | &url | "&ICDoModal=1&ICGrouplet=1', '" | &backFolderName | "');";
+   End-If;
+   
+   Return &url;
+end-method;
+
+method GetRootURL
+   /+ Returns String +/
+   Local string &url = GetLocalNodeContentURI() | "/c/NUI_FRAMEWORK.PTNUI_MENU_COMP.GBL?sa=" | &standalone | "&FLDR=PORTAL_ROOT_OBJECT";
+   If &standalone <> "y" Then
+      &url = "javascript:PTNavBar.OpenInContentArea('" | &url | "&ICDoModal=1&ICGrouplet=1', 'PORTAL_ROOT_OBJECT');";
+   End-If;
+   
+   Return &url;
+end-method;
+
+method RemoteFolderAcess
+   /+ &folder as ApiObject +/
+   /+ Returns String +/;
+   Local string &RFldrType = "LOCAL";
+   Local string &RNodeName, &RFolder, &RCref, &FldrAccess;
+   Local number &LegacyType;
+   &FldrAccess = "FALSE";
+   If (&folder <> Null) Then
+      Local ApiObject &attrib = &folder.Attributes;
+      If &attrib.ItemByName("LOCATION") <> Null Then
+         &RFldrType = &attrib.ItemByName("LOCATION").value;
+      End-If;
+      If &attrib.ItemByName("NODE") <> Null Then
+         &RNodeName = &attrib.ItemByName("NODE").value;
+      End-If;
+      If &attrib.ItemByName("FOLDERID") <> Null Then
+         &RFolder = &attrib.ItemByName("FOLDERID").value;
+         &LegacyType = Find(":", &RFolder);
+         If (&LegacyType = 0) Then
+            &RFolder = &RNodeName | ":" | &RFolder;
+         End-If;
+      End-If;
+      If &attrib.ItemByName("CREFID") <> Null Then
+         &RCref = &attrib.ItemByName("CREFID").value;
+      End-If;
+      If &RFldrType = "REMOTE" Then
+         &FldrAccess = CheckUnFldrAccess(&RCref, &RFolder, &RNodeName);
+      End-If;
+      If &RFldrType = "LOCAL" Then
+         &FldrAccess = "TRUE";
+      End-If;
+   End-If;
+   Return &FldrAccess;
+end-method;
+
+
+method RowClicked
+   /+ &content as PTNUI:NavBarContentArea:NBContent +/
+   /+ Extends/implements PTNUI:NavBarContentArea:NBContentCollection.RowClicked +/
+   Local string &val = &content.getUrl();
+   If Find("http", &val) <> 1 Then
+      Local array of string &vals = Split(&val, "|");
+      If &vals.Len <> 2 Then
+         Error (&val);
+      Else
+         &ptnui_CurContentColl = create PTNUI:NavBarContentArea:Content:Menu(&vals [1]);
+         Local ApiObject &portal = PortalOpen();
+         SetContentArea(&portal, &ptnui_CurContentColl);
+      End-If;
+   Else
+      ViewURL(&val);
+   End-If;
+end-method;
+
+method IsUniNavFolder
+   /+ &portal as ApiObject, +/
+   /+ &folderName as String +/
+   /+ Returns Boolean +/
+   Local ApiObject &RootFolder = &portal.FindFolderByName(&folderName);
+   Local string &FldrType = "LOCAL";
+   Local string &RNode;
+   Local number &isLegacy;
+   If (&RootFolder <> Null) Then
+      Local ApiObject &colAttrib = &RootFolder.Attributes;
+      If &colAttrib.ItemByName("LOCATION") <> Null Then
+         &FldrType = &colAttrib.ItemByName("LOCATION").value;
+      End-If;
+      If &colAttrib.ItemByName("NODE") <> Null Then
+         &RNode = &colAttrib.ItemByName("NODE").value;
+      End-If;
+      If &colAttrib.ItemByName("FOLDERID") <> Null Then
+         &RFolderList = &colAttrib.ItemByName("FOLDERID").value;
+         &isLegacy = Find(":", &RFolderList);
+         If (&isLegacy = 0) Then
+            &RFolderList = &RNode | ":" | &RFolderList;
+         End-If;
+      End-If;
+   End-If;
+   
+   If &FldrType = "REMOTE" Then
+      &RFolderName = &folderName;
+      Return True;
+   Else
+      Return False;
+   End-If;
+end-method;
+
+method LoadLocalMenu
+   /+ &portal as ApiObject, +/
+   /+ &folderName as String +/
+   Local ApiObject &RootFolder = &portal.FindFolderByName(&folderName);
+   Local ApiObject &folders = &RootFolder.Folders;
+   Local ApiObject &folder = &folders.first();
+   Local string &RemFolderAccess;
+   Local array of string &CrefCollection = CreateArrayRept("", 0);
+   &FolderLabel = &RootFolder.Label;
+   
+   While &folder <> Null
+      &RemFolderAccess = %This.RemoteFolderAcess(&folder);
+      If &folder.Authorized And
+            &folder.IsVisible And
+            &RemFolderAccess = "TRUE" And
+            None(&folder.AbnDataSource) Then
+         If &folder.Name = "MYFAVORITES" Then
+            &folder = &folders.next();
+            Continue;
+         End-If;
+         
+         Local string &url;
+         If All(&folder.AbnDataSource) Then
+            Local PT_NAV2:NavOptions &navOptions = create PT_NAV2:NavOptions(&portal, False);
+            &url = "javascript:PTNavBar.OpenInWindow('" | &navOptions.smartNavGetPortalFldrURL(&folder) | "');";
+         Else
+            &url = GetLocalNodeContentURI() | "/c/NUI_FRAMEWORK.PTNUI_MENU_COMP.GBL?sa=" | &standalone | "&FLDR=" | &folder.name;
+            If &standalone <> "y" Then
+               &url = "javascript:PTNavBar.OpenInContentArea('" | &url | "&ICDoModal=1&ICGrouplet=1', '" | &folder.name | "');";
+            End-If;
+         End-If;
+         
+         Local string &fldrLabel = &folder.Label;
+         Local string &access = GetUserOption("PPTL", "ACCESS");
+         If &access = "A" Then
+            &fldrLabel = &fldrLabel | " " | MsgGetText(95, 9101, "folder");
+         End-If;
+         
+         Local PTNUI:NavBarContentArea:NBContent &nbc = create PTNUI:NavBarContentArea:NBContent(&folder.Name, &fldrLabel, &url);
+         &nbc.ariaAttributes = "role='menuitem' aria-haspopup='true'";
+         If Not All(&folder.AbnDataSource) Then
+            &nbc.style = "fldr";
+         End-If;
+         %This.InsertItem(&nbc)
+      End-If;
+      &folder = &folders.next();
+   End-While;
+   
+   Local ApiObject &crefs = &RootFolder.ContentRefs;
+   Local ApiObject &cref = &crefs.first();
+   While &cref <> Null
+      Local string &IsNewWindow = "N";
+      Local ApiObject &navAttr = &cref.Attributes.ItemByName("NAVNEWWIN");
+      If &navAttr <> Null Then
+         Local string &strNavAttrVal = &navAttr.value;
+         If Upper(&strNavAttrVal) = "TRUE" Then
+            &IsNewWindow = "Y";
+         End-If;
+      End-If;
+      
+      If (&CrefCollection.Find(&cref.Name) = 0) Then
+         
+         If &cref.Authorized And
+               &cref.IsVisible Then
+            If &IsNewWindow = "Y" Then
+               &url = "javascript:LaunchURL(null, '" | EscapeJavascriptString(&cref.AbsolutePortalURL) | "', 1);";
+            Else
+               &url = "javascript:PTNavBar.OpenInWindow('" | &cref.AbsolutePortalURL | "','" | &cref.Name | "');";
+            End-If;
+            %This.InsertItem(create PTNUI:NavBarContentArea:NBContent(&cref.Name, &cref.Label, &url));
+            &CrefCollection.Push(&cref.Name);
+         End-If;
+      End-If;
+      &cref = &crefs.next();
+   End-While;
+   
+end-method;
+
+method LoadRemoteMenu
+   /+ &portal as ApiObject, +/
+   /+ &folderName as String, +/
+   /+ &RemRootFldr as String +/
+   
+   Local PTUN_UNINAV:RemoteMenu:RemoteMenu &objRemotePortalRegistry = create PTUN_UNINAV:RemoteMenu:RemoteMenu(&folderName, &RemRootFldr);
+   
+   Local PTUN_UNINAV:UTILITY:Collection &RFolders = &objRemotePortalRegistry.Folders();
+   Local PTUN_UNINAV:UTILITY:Collection &RCrefs = &objRemotePortalRegistry.Crefs();
+   
+   Local PTUN_UNINAV:RemoteMenu:Folders &RFolder = &RFolders.First();
+   Local PTUN_UNINAV:RemoteMenu:Crefs &RCref = &RCrefs.First();
+   Local array of string &CrefCollection = CreateArrayRept("", 0);
+   
+   Local string &uninavpath_Root;
+   
+   Local string &UniNav = %Request.GetParameter("UNINAV");
+   Local string &RemoteNode = %Request.GetParameter("UNNODE");
+   Local string &RFolderListP = %Request.GetParameter("RFolderList");
+   Local string &RFolderNameP = %Request.GetParameter("RFolder");
+   
+   Local ApiObject &f;
+   If &RemRootFldr = "N" Then
+      &FolderLabel = &objRemotePortalRegistry.RFolderLabel;
+      &ParentFolderName = &objRemotePortalRegistry.RFolderParentName;
+      &ParentFolderLabel = &objRemotePortalRegistry.RFolderParentLabel;
+      
+      &uninavpath_Root = "Root{PORTAL_ROOT_OBJECT}.NO_CRUMB{" | &RFolderNameP | ",PORTAL_ROOT_OBJECT}";
+      
+      If Find(&RemoteNode | ":" | &ParentFolderName, &RFolderListP) > 0 Then
+         &f = &portal.FindFolderByname(&RFolderNameP);
+         If &f <> Null Then
+            &ParentFolderLabel = &f.Label;
+         End-If;
+      End-If;
+   End-If;
+   
+   If &objRemotePortalRegistry.RFolderParentName = "" Then
+      &uninavpath_Root = "Root{PORTAL_ROOT_OBJECT}.NO_CRUMB{" | &objRemotePortalRegistry.RFolderName | ",PORTAL_ROOT_OBJECT}";
+   End-If;
+   
+   While &RFolder <> Null
+      If (&RFolder.Name <> "" And
+            &RFolder.Name <> "MYFAVORITES" And
+            &RFolder.Label <> "") Then
+         
+         If (&UniNav = "Y") Then
+            &RFolderList = &RFolderListP;
+            &RFolderName = &RFolderNameP;
+         End-If;
+         
+         Local string &Rurl = GetLocalNodeContentURI() | "/c/NUI_FRAMEWORK.PTNUI_MENU_COMP.GBL?sa=" | &standalone | "&FLDR=" | EscapeHTML(&RFolder.Name) | "&FLDRLBL=" | EscapeHTML(&RFolder.Label) | "&UNINAV=Y&UNNODE=" | EscapeHTML(&RFolder.Node) | "&RFolder=" | &RFolderName | "&RFolderList=" | &RFolderList;
+         If &standalone <> "y" Then
+            &Rurl = "javascript:PTNavBar.OpenInContentArea('" | &Rurl | "&ICDoModal=1&ICGrouplet=1', '" | &RFolder.Node | ":" | &RFolder.Name | "');";
+         End-If;
+         
+         Local PTNUI:NavBarContentArea:NBContent &Rnbc = create PTNUI:NavBarContentArea:NBContent(&RFolder.Name | "_" | &folderName, &RFolder.Label, &Rurl);
+         &Rnbc.ariaAttributes = "role='menuitem' aria-haspopup='true'";
+         &Rnbc.style = "fldr";
+         %This.InsertItem(&Rnbc);
+      End-If;
+      &RFolder = &RFolders.Next();
+   End-While;
+   
+   Local string &HostNodeURI = getPortalHostNodeURI();
+   Local string &PortalContextIURI = "";
+   Local string &strURLDummy;
+   Local number &j, &qryStringPos;
+   Local string &strHPTabNameDummy = "REMOTEUNIFIEDDASHBOARD";
+   
+   While &RCref <> Null
+      If (&CrefCollection.Find(&RCref.Name | "+" | &RCref.Node) = 0) Then;
+         If (&RCref.Name <> "" And
+               &RCref.Label <> "" And
+               &RCref.AbsolutePortalURL <> "" And
+               &RCref.Name <> "PT_FLUID_HOMEPAGE" And
+               &RCref.Name <> "PT_CLASSIC_HOMEPAGE") Then
+            
+            &PortalContextIURI = &RCref.AbsolutePortalURL;
+            
+            REM Replace the URI with the portal context;
+            If (&RCref.AbsolutePortalURL <> "" And
+                  &HostNodeURI <> "") Then
+               &j = Find("/h/?tab=", &PortalContextIURI);
+               If (&j > 0) Then
+                  &strURLDummy = GenerateHomepagePortalURL(%Portal, %Node, &strHPTabNameDummy);
+                  &qryStringPos = Find("?", &PortalContextIURI);
+                  If &qryStringPos > 0 Then
+                     &PortalContextIURI = &strURLDummy | "&remotedburl=" | EncodeURLForQueryString(&PortalContextIURI) | "&unifieddashboard=y";
+                  Else
+                     &PortalContextIURI = &strURLDummy | "?remotedburl=" | EncodeURLForQueryString(&PortalContextIURI) | "&unifieddashboard=y";
+                  End-If;
+               Else
+                  Local number &StartPos = Find(%Portal, &RCref.AbsolutePortalURL);
+                  If &StartPos <> 0 Then
+                     &PortalContextIURI = Replace(&RCref.AbsolutePortalURL, 0, &StartPos - 1, &HostNodeURI);
+                  End-If;
+                  &qryStringPos = Find("?", &PortalContextIURI);
+                  If &qryStringPos > 0 Then
+                     &PortalContextIURI = &PortalContextIURI | "&cmd=uninav&Rnode=" | &RCref.Node;
+                  Else
+                     &PortalContextIURI = &PortalContextIURI | "?cmd=uninav&Rnode=" | &RCref.Node;
+                  End-If;
+               End-If;
+               
+               Local string &UniNavPath;
+               
+               REM add uinavpath;
+               If &objRemotePortalRegistry.RFolderParentName = "" Then
+                  &UniNavPath = "Root{PORTAL_ROOT_OBJECT}.NO_CRUMB{" | &objRemotePortalRegistry.RFolderName | ",PORTAL_ROOT_OBJECT}";
+                  &uninavpath_Root = &UniNavPath;
+               End-If;
+               REM add the folder name at the last of &uninavpath_Root;
+               &UniNavPath = &uninavpath_Root | "." | &RCref.Label | "{" | &RCref.Name | "}";
+               
+               &PortalContextIURI = &PortalContextIURI | "&uninavpath=" | &UniNavPath;
+               
+               Local string &strNavNew = &RCref.IsNavNewWin;
+               &j = Find("&IsNavNewWin=True", &strNavNew);
+               If (&j > 0) Then
+                  &Rurl = "javascript:LaunchURL(null, '" | EscapeJavascriptString(&PortalContextIURI) | "', 1);";
+               Else
+                  &Rurl = "javascript:PTNavBar.OpenInWindow('" | &PortalContextIURI | "','" | &RCref.Name | "');";
+               End-If;
+               
+               %This.InsertItem(create PTNUI:NavBarContentArea:NBContent(&RCref.Name, &RCref.Label, &Rurl));
+               &CrefCollection.Push(&RCref.Name | "+" | &RCref.Node);
+            End-If;
+         End-If;
+      End-If;
+      &RCref = &RCrefs.Next();
+   End-While;
+   
+end-method;
+

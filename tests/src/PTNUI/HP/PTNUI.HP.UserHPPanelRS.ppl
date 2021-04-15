@@ -1,0 +1,243 @@
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+
+class UserHPPanelRS
+   method UserHPPanelRS(&rsName As string);
+   
+   method InitRowset(&lp As PTNUI:Model:LandingPage);
+   
+   method AddLP(&name As string, &label As string);
+   method MoveHP(&fromRow As number, &toRow As number);
+   method RemoveHP(&rowNum As number);
+   method UnhideHP(&name As string);
+   method IsHPHidden(&name As string) Returns boolean;
+   
+   method GetLPSeqNum(&name As string) Returns number;
+   method GetFirstLP() Returns string;
+   method TabExists(&name As string) Returns boolean;
+   method SetNextActiveTab(&rowNum As number);
+   method Length() Returns number;
+   
+   property number maxSeqRet get;
+private
+   method AddLPToRS(&rec As Record, &name As string, &label As string);
+   
+   instance Rowset &uhpRS;
+   instance number &maxSeqNum;
+end-class;
+
+method UserHPPanelRS
+   /+ &rsName as String +/
+   &uhpRS = GetLevel0()(1).GetRowset(@("Scroll." | &rsName));
+   &maxSeqNum = 0;
+end-method;
+
+method AddLPToRS
+   /+ &rec as Record, +/
+   /+ &name as String, +/
+   /+ &label as String +/
+   &rec.PTNUI_LP_NAME.Value = &name;
+   &rec.PTNUI_LP_LABEL.Value = &label;
+   &rec.GROUPBOX.JavaScriptEvents = "aria-controls='PT_CONTENT' tabIndex='0' role='link' onclick=""javascript:lpSwipeToTab('" | &name | "')"" onkeyup=""javascript:checkEnter(event, this);""";
+   &rec.PTNUI_ACTION_LINK.Value = &label;
+end-method;
+
+method InitRowset
+   /+ &lp as PTNUI:Model:LandingPage +/
+   Local array of PTNUI:Model:LandingPageTab &tabs = &lp.GetTabs();
+   Local number &i;
+   
+   &uhpRS.Flush();
+   For &i = 1 To &tabs.Len
+      If &uhpRS.ActiveRowCount < &i Then
+         &uhpRS.InsertRow(&uhpRS.ActiveRowCount);
+      End-If;
+      Local number &idx = &i;
+      
+      Local Row &curHp = &uhpRS(&idx);
+      %This.AddLPToRS(&curHp.PTNUI_HPPNL2REC, &tabs [&i].ID, &tabs [&i].Label);
+      &curHp.PTNUI_HPPNL2REC.SEQ_NBR.Value = &tabs [&i].SeqNum;
+      
+      If &curHp.PTNUI_HPPNL2REC.SEQ_NBR.Value > &maxSeqNum Then
+         &maxSeqNum = &curHp.PTNUI_HPPNL2REC.SEQ_NBR.Value;
+      End-If;
+      
+      If &lp.isActiveTab(&tabs [&i]) Then
+         &curHp.PTNUI_HPPNL2REC.GROUPBOX.FreeFormStyleName = "selected";
+      End-If;
+      &curHp.PTNUI_HPPNL2REC.PTNUI_CLOSE_BTN.HoverText = MsgGetText(190, 12, "MNF-Delete") | " " | &tabs [&i].Label;
+      &curHp.PTNUI_HPPNL2REC.PTNUI_CLOSE_BTN.Label = MsgGetText(190, 12, "MNF-Delete") | " " | &tabs [&i].Label;
+      If &tabs [&i].LayoutBehavior = "1FIX" Or
+            &tabs [&i].LayoutBehavior = "2REQ" Then
+         &curHp.PTNUI_HPPNL2REC.PTNUI_CLOSE_BTN.FreeFormStyleName = "psc_force-hidden";
+         rem &curHp.PTNUI_HPPNL2REC.PTNUI_CLOSE_BTN.Visible = False;
+      End-If;
+      
+      &curHp.PTNUI_HPPNL2REC.PTGP_IMAGE_REF.Value = @("Image." | Image.PTNUI_LP_DRAG_ICN);
+      &curHp.PTNUI_HPPNL2REC.PTGP_IMAGE_REF.Label = MsgGetText(126, 271, "MNF-Drag") | " " | &tabs [&i].Label;
+      
+   End-For;
+   &uhpRS.Sort(PTNUI_HPPNL2REC.SEQ_NBR, "A", PTNUI_HPPNL2REC.PTNUI_LP_LABEL, "A");
+   
+   For &i = 1 To &uhpRS.ActiveRowCount
+      &uhpRS(&i).PTNUI_HPPNL2REC.SEQ_NBR.Value = &i;
+   End-For;
+end-method;
+
+method AddLP
+   /+ &name as String, +/
+   /+ &label as String +/
+   &uhpRS.InsertRow(&uhpRS.ActiveRowCount);
+   %This.AddLPToRS(&uhpRS(&uhpRS.ActiveRowCount).PTNUI_HPPNL2REC, &name, &label);
+   &uhpRS(&uhpRS.ActiveRowCount).PTNUI_HPPNL2REC.SEQ_NBR.Value = &maxSeqNum + 1;
+   &maxSeqNum = &uhpRS(&uhpRS.ActiveRowCount).PTNUI_HPPNL2REC.SEQ_NBR.Value;
+end-method;
+
+method MoveHP
+   /+ &fromRow as Number, +/
+   /+ &toRow as Number +/
+   If &fromRow = &toRow Then
+      Return;
+   End-If;
+   
+   Local number &i;
+   Local number &fromSeqNum = &uhpRS(&fromRow).PTNUI_HPPNL2REC.SEQ_NBR.Value;
+   Local number &toSeqNum = &uhpRS(&toRow).PTNUI_HPPNL2REC.SEQ_NBR.Value;
+   
+   Local string &z;
+   Local number &recSeqNum;
+   For &i = 1 To &uhpRS.ActiveRowCount
+      Local Record &rec = &uhpRS(&i).PTNUI_HPPNL2REC;
+      &recSeqNum = &rec.SEQ_NBR.Value;
+      If &recSeqNum = &fromSeqNum Then
+         &rec.SEQ_NBR.Value = &toSeqNum;
+      Else
+         If &fromSeqNum > &toSeqNum Then
+            rem move higher to lower;
+            If &recSeqNum >= &toSeqNum And
+                  &recSeqNum < &fromSeqNum Then
+               &rec.SEQ_NBR.Value = &rec.SEQ_NBR.Value + 1;
+            End-If;
+         Else
+            rem move lower to higher;
+            If &recSeqNum > &fromSeqNum And
+                  &recSeqNum <= &toSeqNum Then
+               &rec.SEQ_NBR.Value = &rec.SEQ_NBR.Value - 1;
+            End-If;
+         End-If;
+      End-If;
+      rem         &z = &z | " " | &rec.SEQ_NBR.Value;
+   End-For;
+   rem Warning (&z);
+   &uhpRS.Sort(PTNUI_HPPNL2REC.SEQ_NBR, "A");
+end-method;
+
+method RemoveHP
+   /+ &rowNum as Number +/
+   &uhpRS(&rowNum).Style = &uhpRS(&rowNum).Style | " nuihidden";
+end-method;
+
+method UnhideHP
+   /+ &name as String +/
+   Local number &i;
+   For &i = 1 To &uhpRS.ActiveRowCount
+      Local Record &rec = &uhpRS(&i).PTNUI_HPPNL2REC;
+      If &rec.PTNUI_LP_NAME.Value = &name Then
+         Local string &style = &uhpRS(&i).Style;
+         Local number &pos = Find("nuihidden", &style);
+         If &pos > 0 Then
+            &uhpRS(&i).Style = Substitute(&uhpRS(&i).Style, " nuihidden", "");
+         End-If;
+      End-If;
+   End-For;
+end-method;
+
+method IsHPHidden
+   /+ &name as String +/
+   /+ Returns Boolean +/
+   Local number &i;
+   For &i = 1 To &uhpRS.ActiveRowCount
+      Local Record &rec = &uhpRS(&i).PTNUI_HPPNL2REC;
+      If Find("USERDEFINEDLP", &rec.PTNUI_LP_NAME.Value) > 0 Then
+         Continue;
+      End-If;
+      
+      If &rec.PTNUI_LP_NAME.Value = &name Then
+         Local string &style = &uhpRS(&i).Style;
+         If Find("nuihidden", &style) > 0 Then
+            Return True;
+         Else
+            Return False;
+         End-If;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method GetLPSeqNum
+   /+ &name as String +/
+   /+ Returns Number +/
+   Local number &i;
+   For &i = 1 To &uhpRS.ActiveRowCount
+      Local Record &rec = &uhpRS(&i).PTNUI_HPPNL2REC;
+      If &rec.PTNUI_LP_NAME.Value = &name Then
+         Return &rec.SEQ_NBR.Value;
+         Break;
+      End-If;
+   End-For;
+   
+   Return 0;
+end-method;
+
+method GetFirstLP
+   /+ Returns String +/
+   Return &uhpRS(1).PTNUI_HPPNL2REC.PTNUI_LP_NAME.Value;
+end-method;
+
+method TabExists
+   /+ &name as String +/
+   /+ Returns Boolean +/
+   Local number &i;
+   For &i = 1 To &uhpRS.ActiveRowCount
+      If &uhpRS(&i).PTNUI_HPPNL2REC.PTNUI_LP_NAME.Value = &name Then
+         Return True;
+         Break;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+method SetNextActiveTab
+   /+ &rowNum as Number +/
+   Local number &newActiveRow = 0;
+   Local number &i;
+   For &i = &rowNum To %This.Length()
+      If Find(" nuihidden", &uhpRS(&i).Style) = 0 Then
+         &newActiveRow = &i;
+         Break;
+      End-If;
+   End-For;
+   If &newActiveRow = 0 Then
+      For &i = &rowNum To 1 Step - 1
+         If Find(" nuihidden", &uhpRS(&i).Style) = 0 Then
+            &newActiveRow = &i;
+            Break;
+         End-If;
+      End-For;
+   End-If;
+   
+   If &newActiveRow <> 0 Then
+      AddOnLoadScript("lpSwipeToTab('" | &uhpRS(&i).PTNUI_HPPNL2REC.PTNUI_LP_NAME.Value | "');");
+   End-If;
+end-method;
+
+method Length
+   /+ Returns Number +/
+   Return &uhpRS.ActiveRowCount;
+end-method;
+
+get maxSeqRet
+   /+ Returns Number +/
+   Return &maxSeqNum;
+end-get;
+

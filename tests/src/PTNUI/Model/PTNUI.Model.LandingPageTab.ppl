@@ -1,0 +1,643 @@
+import PTNUI:Model:Tile;
+
+class LandingPageTab
+   method LandingPageTab(&pNodeName As string, &pPortalName As string, &pTabName As string);
+   
+   method AddPinnedTileFromReg(&portal As ApiObject, &pinnedPglt As Record);
+   method AddUserTileFromReg(&portal As ApiObject, &selPglt As ApiObject);
+   method AddSystemTileFromReg(&portal As ApiObject, &availPglt As ApiObject);
+   method AddUserTileFromRS(&tile As PTNUI:Model:Tile);
+   method RemoveUserTile(&tileName As string);
+   
+   method GetTiles() Returns array of PTNUI:Model:Tile;
+   method ResetTiles();
+   
+   method AddTile(&pTile As PTNUI:Model:Tile);
+   method GetTileByid(&pTileId As string) Returns PTNUI:Model:Tile;
+   method DeleteTileById(&pTileId As string);
+   method MakeAllTilesForDelete();
+   method MarkOptionalTilesForDelete();
+   method MergeSystemData(&lptSys As PTNUI:Model:LandingPageTab);
+   
+   method toXML(&pXmlNode As XmlNode);
+   method fromXML(&pXmlNode As XmlNode);
+   
+   method clone() Returns PTNUI:Model:LandingPageTab;
+   method equalsById(&pTabId As string) Returns boolean;
+   method hasSFFTiles() Returns boolean;
+   
+   method debug();
+   
+   property string ID get;
+   property boolean IsSysTab get;
+   
+   property boolean IsMerged get;
+   property array of PTNUI:Model:LandingPageTab OriginalTabs get;
+   
+   property string NodeName;
+   property string PortalName;
+   property string TabName;
+   property string Label;
+   property string SysLabel;
+   property number SeqNum;
+   property boolean IsLayoutLocked;
+   property boolean IsRenameable;
+   property string LayoutBehavior;
+   property string ActiveFlag;
+   property boolean IsOpDashboard;
+   
+   property boolean IsRemote;
+   property string RemoteNodeName;
+   property string RemotePortalName;
+   property string RemoteCRefName;
+   property string NetworkNodeName;
+   
+   property boolean HasUserData;
+   
+   property boolean MarkedForDelete;
+   property boolean IsChanged;
+private
+   Constant &cstXML_ELEMENT_ORIGINAL_TAB = "OriginalTab";
+   Constant &cstXML_ELEMENT_TILE = "Tile";
+   
+   Constant &cstXML_ATTRIBUTE_NODE_NAME = "nodeName";
+   Constant &cstXML_ATTRIBUTE_PORTAL_NAME = "portalName";
+   Constant &cstXML_ATTRIBUTE_TAB_NAME = "tabName";
+   Constant &cstXML_ATTRIBUTE_LABEL = "label";
+   Constant &cstXML_ATTRIBUTE_SYS_LABEL = "sysLabel";
+   Constant &cstXML_ATTRIBUTE_SEQ_NUM = "seqNum";
+   Constant &cstXML_ATTRIBUTE_LAYOUT_LOCKED = "isLayoutLocked";
+   Constant &cstXML_ATTRIBUTE_RENAMEABLE = "isRenameable";
+   Constant &cstXML_ATTRIBUTE_LAYOUT_BEHAVIOR = "layoutBehavior";
+   Constant &cstXML_ATTRIBUTE_IS_DASHBOARD = "isOpDashboard";
+   Constant &cstXML_ATTRIBUTE_IS_REMOTE = "isRemote";
+   Constant &cstXML_ATTRIBUTE_REMOTE_NODE_NAME = "remoteNodeName";
+   Constant &cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME = "remotePortalName";
+   Constant &cstXML_ATTRIBUTE_REMOTE_CREF_NAME = "remoteCrefName";
+   Constant &cstXML_ATTRIBUTE_NETWORK_NODE_NAME = "networkNodeName";
+   Constant &cstXML_ATTRIBUTE_HAS_USER_DATA = "HasUserData";
+   Constant &cstXML_ATTRIBUTE_MARKED_FOR_DELETE = "markedForDelete";
+   Constant &cstXML_ATTRIBUTE_ISCHANGED = "IsChanged";
+   
+   Constant &cstTRUE = "true";
+   Constant &cstFALSE = "false";
+   
+   instance array of PTNUI:Model:Tile &m_tiles;
+   instance array of PTNUI:Model:LandingPageTab &originalTabs_inst;
+end-class;
+
+
+Declare Function IsValid PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function IsLocalPIANode PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+
+method LandingPageTab
+   /+ &pNodeName as String, +/
+   /+ &pPortalName as String, +/
+   /+ &pTabName as String +/
+   
+   Local PTNUI:Model:Tile &tile;
+   
+   &m_tiles = CreateArrayRept(&tile, 0);
+   
+   &NodeName = &pNodeName;
+   &PortalName = &pPortalName;
+   &TabName = &pTabName;
+   &Label = &pTabName;
+   &SysLabel = &pTabName;
+   &SeqNum = 0;
+   &IsLayoutLocked = False;
+   &IsRenameable = True;
+   &LayoutBehavior = "4OPT";
+   &IsOpDashboard = False;
+   
+   &IsRemote = False;
+   &RemoteNodeName = "";
+   &RemotePortalName = "";
+   &RemoteCRefName = "";
+   &NetworkNodeName = %LocalNode;
+   
+   &HasUserData = False;
+   
+   Local string &tmpVal;
+   SQLExec("SELECT PTNUI_LP_ACTIVE FROM PS_PTNUI_LP_STATE WHERE OPRID = :1 AND PORTAL_NAME = :2 AND PORTAL_OBJNAME = :3 AND PORTAL_HOSTNODENAM = :4", %UserId, &PortalName, &TabName, &NodeName, &tmpVal);
+   &ActiveFlag = &tmpVal;
+   
+   &MarkedForDelete = False;
+   &IsChanged = False;
+end-method;
+
+method AddPinnedTileFromReg
+   /+ &portal as ApiObject, +/
+   /+ &pinnedPglt as Record +/
+   
+   Local string &pageletName, &pageletCrefNode, &pageletCrefName;
+   
+   Local ApiObject &cref, &fref;
+   
+   Local PTNUI:Model:Tile &tile;
+   
+   If None(&portal) Then
+      MessageBox(0, "", 95, 10009, "Portal is null %1", "LandingPageTab:AddPinnedTileFromReg()");
+   End-If;
+   
+   &pageletName = &pinnedPglt.PORTAL_OBJNAME_PGT.Value;
+   &pageletCrefNode = &pinnedPglt.PORTAL_HOSTNODENAM.Value;
+   &pageletCrefName = &pinnedPglt.PORTAL_CREF_NAME.Value;
+   
+   &tile = create PTNUI:Model:Tile(%This.NodeName, %This.PortalName, &pageletName, "");
+   
+   If All(&pageletCrefNode, &pageletCrefName) And
+         IsLocalPIANode(&pageletCrefNode) Then
+      
+      &cref = &portal.FindCRefByName(&pageletCrefName);
+      If ( Not IsValid(&cref)) Then
+         Return;
+      End-If;
+      
+      &tile.SetPropertiesFromCref(&cref);
+      
+      &fref = &portal.FindFolderByName(&cref.ParentName);
+      If ( Not IsValid(&fref)) Then
+         Return;
+      End-If;
+      
+      &tile.CategoryLabel = &fref.Label;
+      
+   End-If;
+   
+   &tile.SetPropertiesFromPinnedPglt(&pinnedPglt);
+   
+   &m_tiles.Push(&tile);
+   
+   %This.HasUserData = True;
+   
+end-method;
+
+method AddUserTileFromReg
+   /+ &portal as ApiObject, +/
+   /+ &selPglt as ApiObject +/
+   If &portal = Null Then
+      MessageBox(0, "", 95, 10009, "Portal is null %1", "LandingPageTab:AddUserTileFromReg()");
+   End-If;
+   
+   Local ApiObject &cref = &portal.FindCRefByName(&selPglt.PageletName);
+   If ( Not IsValid(&cref)) Then
+      Return;
+   End-If;
+   Local ApiObject &fref = &portal.FindFolderByName(&cref.ParentName);
+   If ( Not IsValid(&fref)) Then
+      Return;
+   End-If;
+   Local PTNUI:Model:Tile &tile = create PTNUI:Model:Tile(%This.NodeName, %This.PortalName, &selPglt.PageletName, "");
+   &tile.SetPropertiesFromCref(&cref);
+   &tile.SetPropertiesFromSelPglt(&selPglt);
+   &tile.CategoryLabel = &fref.Label;
+   &m_tiles.Push(&tile);
+   %This.HasUserData = True;
+end-method;
+
+method AddSystemTileFromReg
+   /+ &portal as ApiObject, +/
+   /+ &availPglt as ApiObject +/
+   If &portal = Null Then
+      MessageBox(0, "", 95, 10009, "Portal is null %1", "LandingPageTab:AddSystemTileFromReg()");
+   End-If;
+   
+   Local ApiObject &cref = &portal.FindCRefByName(&availPglt.PageletName);
+   If ( Not IsValid(&cref)) Then
+      Return;
+   End-If;
+   Local PTNUI:Model:Tile &tile = create PTNUI:Model:Tile(%This.NodeName, %This.PortalName, &availPglt.PageletName, "");
+   &tile.SetPropertiesFromCref(&cref);
+   &tile.SetPropertiesFromAvailPglt(&availPglt);
+   &tile.CategoryLabel = &availPglt.CategoryLabel;
+   &m_tiles.Push(&tile);
+end-method;
+
+method AddUserTileFromRS
+   /+ &tile as PTNUI:Model:Tile +/
+   rem &m_tiles.Push(&tile);
+end-method;
+
+method RemoveUserTile
+   /+ &tileName as String +/
+   
+end-method;
+
+method GetTiles
+   /+ Returns Array of PTNUI:Model:Tile +/
+   
+   Local PTNUI:Model:Tile &tile;
+   
+   If (&m_tiles = Null) Then
+      &m_tiles = CreateArrayRept(&tile, 0);
+   End-If;
+   
+   Return &m_tiles;
+   
+end-method;
+
+method ResetTiles
+   
+   Local PTNUI:Model:Tile &tile;
+   
+   &m_tiles = CreateArrayRept(&tile, 0);
+   
+end-method;
+
+method AddTile
+   /+ &pTile as PTNUI:Model:Tile +/
+   
+   Local array of PTNUI:Model:Tile &tileList;
+   
+   &tileList = %This.GetTiles();
+   
+   If (&pTile <> Null) Then
+      &tileList.Push(&pTile);
+   End-If;
+   
+end-method;
+
+method GetTileByid
+   /+ &pTileId as String +/
+   /+ Returns PTNUI:Model:Tile +/
+   
+   Local PTNUI:Model:Tile &tile = Null;
+   
+   Local integer &i;
+   
+   If (&m_tiles <> Null) Then
+      For &i = 1 To &m_tiles.Len
+         If (&m_tiles [&i].ID = &pTileId) Then
+            &tile = &m_tiles [&i];
+            Break;
+         End-If;
+      End-For;
+   End-If;
+   
+   Return &tile;
+   
+end-method;
+
+method DeleteTileById
+   /+ &pTileId as String +/
+   
+   Local integer &i;
+   
+   If (&m_tiles <> Null) Then
+      For &i = &m_tiles.Len To 1 Step - 1
+         If (&m_tiles [&i].ID = &pTileId) Then
+            &m_tiles.Replace(&i, 1);
+            Break;
+         End-If;
+      End-For;
+   End-If;
+   
+end-method;
+
+method MakeAllTilesForDelete
+   
+   Local integer &i;
+   
+   If (&m_tiles <> Null) Then
+      For &i = 1 To &m_tiles.Len
+         If &m_tiles [&i].LayoutBehavior <> "1FIX" And
+               &m_tiles [&i].LayoutBehavior <> "2REQ" Then
+            &m_tiles [&i].MarkedForDelete = True;
+         End-If;
+      End-For;
+   End-If;
+   
+end-method;
+
+method MarkOptionalTilesForDelete
+   Local integer &i;
+   
+   If (&m_tiles <> Null) Then
+      For &i = 1 To &m_tiles.Len
+         If &m_tiles [&i].LayoutBehavior = "4OPT" Then
+            &m_tiles [&i].MarkedForDelete = True;
+         End-If;
+      End-For;
+   End-If;
+end-method;
+
+method MergeSystemData
+   /+ &lptSys as PTNUI:Model:LandingPageTab +/
+   &IsLayoutLocked = &lptSys.IsLayoutLocked;
+   &IsRenameable = &lptSys.IsRenameable;
+   &LayoutBehavior = &lptSys.LayoutBehavior;
+   &SysLabel = &lptSys.Label;
+   &IsOpDashboard = &lptSys.IsOpDashboard;
+   
+   Local number &i, &j;
+   For &i = 1 To &m_tiles.Len
+      Local PTNUI:Model:Tile &t = &m_tiles [&i];
+      Local array of PTNUI:Model:Tile &sysTArr = &lptSys.GetTiles();
+      For &j = 1 To &sysTArr.Len
+         Local PTNUI:Model:Tile &sysTile = &sysTArr [&j];
+         If (&t.ID = &sysTile.ID) Then
+            &t.MergeSystemData(&sysTile);
+            Break;
+         End-If;
+      End-For;
+   End-For;
+end-method;
+
+method debug
+   Local string &outStr;
+   &outStr = &outStr | "NodeName   : " | EscapeJavascriptString(&NodeName) | "\n";
+   &outStr = &outStr | "PortalName : " | EscapeJavascriptString(&PortalName) | "\n";
+   &outStr = &outStr | "TabName    : " | EscapeJavascriptString(&TabName) | "\n";
+   &outStr = &outStr | "Label      : " | EscapeJavascriptString(&Label) | "\n";
+   &outStr = &outStr | "SeqNum     : " | &SeqNum | "\n";
+   &outStr = &outStr | "IsLayoutLocked: " | &IsLayoutLocked | "\n";
+   &outStr = &outStr | "IsRenameable: " | &IsRenameable | "\n";
+   &outStr = &outStr | "LayoutBehavior: " | &LayoutBehavior | "\n";
+   &outStr = &outStr | "IsOpDashboard: " | &IsOpDashboard | "\n";
+   &outStr = &outStr | "RemoteNodeName   : " | EscapeJavascriptString(&RemoteNodeName) | "\n";
+   &outStr = &outStr | "RemotePortalName : " | EscapeJavascriptString(&RemotePortalName) | "\n";
+   &outStr = &outStr | "RemoteName       : " | EscapeJavascriptString(&RemoteCRefName) | "\n";
+   &outStr = &outStr | "NetworkNodeName  : " | EscapeJavascriptString(&NetworkNodeName) | "\n";
+   &outStr = &outStr | "HasUserData:     " | &HasUserData | "\n";
+   &outStr = &outStr | "MarkedForDelete: " | &MarkedForDelete | "\n";
+   &outStr = &outStr | "IsChanged: " | &IsChanged | "\n";
+   &outStr = &outStr | "IsRemote: " | &IsRemote | "\n";
+   &outStr = &outStr | "IsMerged: " | %This.IsMerged | "\n";
+   
+   AddOnLoadScript("console.log(' " | &outStr | " ')");
+   Local number &i;
+   For &i = 1 To &m_tiles.Len
+      &m_tiles [&i].debug();
+   End-For;
+end-method;
+
+method toXML
+   /+ &pXmlNode as XmlNode +/
+   
+   Local integer &i;
+   
+   Local XmlNode &tileNode, &tabNode;
+   
+   If All(&pXmlNode) Then
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_NODE_NAME, %This.NodeName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, %This.PortalName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_TAB_NAME, %This.TabName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LABEL, %This.Label);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_SYS_LABEL, %This.SysLabel);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_SEQ_NUM, String(%This.SeqNum));
+      If %This.IsLayoutLocked Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LAYOUT_LOCKED, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LAYOUT_LOCKED, &cstFALSE);
+      End-If;
+      If %This.IsRenameable Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_RENAMEABLE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_RENAMEABLE, &cstFALSE);
+      End-If;
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LAYOUT_BEHAVIOR, %This.LayoutBehavior);
+      If %This.IsOpDashboard Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_DASHBOARD, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_DASHBOARD, &cstFALSE);
+      End-If;
+      If %This.IsRemote Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOTE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOTE, &cstFALSE);
+      End-If;
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_NODE_NAME, %This.RemoteNodeName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME, %This.RemotePortalName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_CREF_NAME, %This.RemoteCRefName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_NETWORK_NODE_NAME, %This.NetworkNodeName);
+      If %This.HasUserData Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_HAS_USER_DATA, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_HAS_USER_DATA, &cstFALSE);
+      End-If;
+      If %This.MarkedForDelete Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_MARKED_FOR_DELETE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_MARKED_FOR_DELETE, &cstFALSE);
+      End-If;
+      If %This.IsChanged Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_ISCHANGED, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_ISCHANGED, &cstFALSE);
+      End-If;
+      
+      /* Tiles */
+      If (&m_tiles <> Null) Then
+         For &i = 1 To &m_tiles.Len
+            &tileNode = &pXmlNode.AddElement(&cstXML_ELEMENT_TILE);
+            &m_tiles [&i].toXML(&tileNode);
+         End-For;
+      End-If;
+      
+      /* Original Tabs */
+      /*
+      If (&originalTabs_inst <> Null) Then
+         For &i = 1 To &originalTabs_inst.Len
+            &tabNode = &pXmlNode.AddElement(&cstXML_ELEMENT_ORIGINAL_TAB);
+            &originalTabs_inst [&i].toXML(&tabNode);
+         End-For;
+      End-If;
+      */
+      
+   End-If;
+   
+end-method;
+
+method fromXML
+   /+ &pXmlNode as XmlNode +/
+   
+   Local integer &i;
+   
+   Local array of XmlNode &tileNodeList, &tabNodeList;
+   
+   Local PTNUI:Model:Tile &t;
+   Local PTNUI:Model:LandingPageTab &lpt;
+   
+   If All(&pXmlNode) Then
+      
+      &NodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NODE_NAME);
+      &PortalName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+      &TabName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_TAB_NAME);
+      %This.Label = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LABEL);
+      %This.SysLabel = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_SYS_LABEL);
+      %This.SeqNum = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_SEQ_NUM));
+      %This.IsLayoutLocked = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LAYOUT_LOCKED) = &cstTRUE);
+      %This.IsRenameable = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_RENAMEABLE) = &cstTRUE);
+      %This.LayoutBehavior = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LAYOUT_BEHAVIOR);
+      %This.IsOpDashboard = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_DASHBOARD) = &cstTRUE);
+      %This.IsRemote = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_REMOTE) = &cstTRUE);
+      %This.RemoteNodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_NODE_NAME);
+      %This.RemotePortalName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME);
+      %This.RemoteCRefName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_CREF_NAME);
+      %This.NetworkNodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NETWORK_NODE_NAME);
+      %This.HasUserData = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_HAS_USER_DATA) = &cstTRUE);
+      %This.MarkedForDelete = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_MARKED_FOR_DELETE) = &cstTRUE);
+      %This.IsChanged = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_ISCHANGED) = &cstTRUE);
+      
+      /* Tiles */
+      &m_tiles = CreateArrayRept(&t, 0);
+      &tileNodeList = &pXmlNode.GetElementsByTagName(&cstXML_ELEMENT_TILE);
+      For &i = 1 To &tileNodeList.Len
+         &t = create PTNUI:Model:Tile("", "", "", "");
+         &t.fromXML(&tileNodeList [&i]);
+         &m_tiles.Push(&t);
+      End-For;
+      
+      /* Original Tabs */
+      /*
+      &originalTabs_inst = CreateArrayRept(&lpt, 0);
+      &tabNodeList = &pXmlNode.GetElementsByTagName(&cstXML_ELEMENT_ORIGINAL_TAB);
+      For &i = 1 To &tabNodeList.Len
+         &lpt = create PTNUI:Model:LandingPageTab("", "", "");
+         &lpt.fromXML(&tabNodeList [&i]);
+         &originalTabs_inst.Push(&t);
+      End-For;
+      */
+      
+   End-If;
+   
+end-method;
+
+
+
+/**
+  * Clone the object
+  *
+  * @return LandingPageTab object
+  *
+  */
+method clone
+   /+ Returns PTNUI:Model:LandingPageTab +/
+   
+   Local PTNUI:Model:LandingPageTab &newObj;
+   
+   Local integer &i;
+   
+   Local PTNUI:Model:Tile &t;
+   Local PTNUI:Model:LandingPageTab &tab;
+   Local array of PTNUI:Model:Tile &newTileList;
+   Local array of PTNUI:Model:LandingPageTab &newOriginalTabsList;
+   
+   &newObj = create PTNUI:Model:LandingPageTab(%This.NodeName, %This.PortalName, %This.TabName);
+   
+   &newObj.Label = %This.Label;
+   &newObj.SysLabel = %This.SysLabel;
+   &newObj.SeqNum = %This.SeqNum;
+   &newObj.IsLayoutLocked = %This.IsLayoutLocked;
+   &newObj.IsRenameable = %This.IsRenameable;
+   
+   &newObj.LayoutBehavior = %This.LayoutBehavior;
+   &newObj.IsOpDashboard = %This.IsOpDashboard;
+   
+   &newObj.IsRemote = %This.IsRemote;
+   &newObj.RemoteNodeName = %This.RemoteNodeName;
+   &newObj.RemotePortalName = %This.RemotePortalName;
+   &newObj.RemoteCRefName = %This.RemoteCRefName;
+   &newObj.NetworkNodeName = %This.NetworkNodeName;
+   
+   &newObj.HasUserData = %This.HasUserData;
+   &newObj.MarkedForDelete = %This.MarkedForDelete;
+   &newObj.IsChanged = %This.IsChanged;
+   
+   /* Clone Tiles */
+   If (&m_tiles <> Null) Then
+      &newTileList = &newObj.GetTiles();
+      For &i = 1 To &m_tiles.Len
+         &t = &m_tiles [&i];
+         &newTileList.Push(&t.clone());
+      End-For;
+   End-If;
+   
+   /* Clone Original Tabs */
+   If (&originalTabs_inst <> Null) Then
+      &newOriginalTabsList = &newObj.OriginalTabs;
+      For &i = 1 To &originalTabs_inst.Len
+         &tab = &originalTabs_inst [&i];
+         &newOriginalTabsList.Push(&tab.clone());
+      End-For;
+   End-If;
+   
+   Return &newObj;
+   
+end-method;
+
+
+/**
+  * Evaluates whether two landing page tab pointing to the same target.
+  * Note:  for merged tile, all original tiles' ID will be compared.
+  *
+  * @param pTabId the tab ID to compare to.
+  *
+  * @return boolean - true if find match, otherwise false
+  *
+  */
+method equalsById
+   /+ &pTabId as String +/
+   /+ Returns Boolean +/
+   
+   Local boolean &found = False;
+   
+   Local integer &i;
+   
+   If (&pTabId = %This.ID) Then
+      &found = True;
+   Else
+      If (%This.IsMerged) Then
+         For &i = 1 To &originalTabs_inst.Len
+            If (&pTabId = &originalTabs_inst [&i].ID) Then
+               &found = True;
+               Break;
+            End-If;
+         End-For;
+      End-If;
+   End-If;
+   
+   Return &found;
+   
+end-method;
+
+
+method hasSFFTiles
+   /+ Returns Boolean +/
+   Local number &i;
+   For &i = 1 To &m_tiles.Len
+      If &m_tiles [&i].IsSmallFFOptimized = 1 Then
+         Return True;
+      End-If;
+   End-For;
+   Return False;
+end-method;
+
+
+get ID
+   /+ Returns String +/
+   Return &NodeName | "." | &PortalName | "." | &TabName;
+end-get;
+
+get IsSysTab
+   /+ Returns Boolean +/
+   Return (Find("USERDEFINEDLP", %This.TabName) <> 1);
+end-get;
+
+get IsMerged
+   /+ Returns Boolean +/
+   Return ((&originalTabs_inst <> Null) And
+      (&originalTabs_inst.Len > 1));
+end-get;
+
+get OriginalTabs
+   /+ Returns Array of PTNUI:Model:LandingPageTab +/
+   Local PTNUI:Model:LandingPageTab &lpt;
+   If (&originalTabs_inst = Null) Then
+      &originalTabs_inst = CreateArrayRept(&lpt, 0);
+   End-If;
+   Return &originalTabs_inst;
+end-get;
+

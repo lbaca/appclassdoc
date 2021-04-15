@@ -1,0 +1,52 @@
+class NBContent
+   method NBContent(&n As string, &l As string, &u As string);
+   method getName() Returns string;
+   method getLabel() Returns string;
+   method getUrl() Returns string;
+   method getStyle() Returns string;
+   method getAria() Returns string;
+   
+   property string style;
+   property string ariaAttributes;
+private
+   instance string &name;
+   instance string &label;
+   instance string &url;
+end-class;
+
+method NBContent
+   /+ &n as String, +/
+   /+ &l as String, +/
+   /+ &u as String +/
+   &name = &n;
+   &label = &l;
+   &url = &u;
+   
+   &ariaAttributes = "role='menuitem'";
+end-method;
+
+method getName
+   /+ Returns String +/
+   Return &name;
+end-method;
+
+method getLabel
+   /+ Returns String +/
+   Return &label;
+end-method;
+
+method getUrl
+   /+ Returns String +/
+   Return &url;
+end-method;
+
+method getStyle
+   /+ Returns String +/
+   Return &style;
+end-method;
+
+method getAria
+   /+ Returns String +/
+   Return &ariaAttributes;
+end-method;
+

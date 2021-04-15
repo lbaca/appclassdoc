@@ -1,0 +1,61 @@
+import PTNUI:Registry:NUIRegistry;
+import PTNUI:Model:LandingPage;
+import PTNUI:Model:LandingPageTab;
+
+class UniNavRegistry extends PTNUI:Registry:NUIRegistry
+   method LoadUserTiles(&portal As ApiObject, &lp As PTNUI:Model:LandingPage);
+   method LoadSystemTiles(&portal As ApiObject, &lp As PTNUI:Model:LandingPage);
+   method SaveUserTiles(&portal As ApiObject, &lp As PTNUI:Model:LandingPage);
+   
+   method InitializeModels(&lpSys As PTNUI:Model:LandingPage, &lpUser As PTNUI:Model:LandingPage);
+end-class;
+
+Declare Function GetLandingPageTabListForPortal PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+method LoadUserTiles
+   /+ &portal as ApiObject, +/
+   /+ &lp as PTNUI:Model:LandingPage +/
+end-method;
+
+method LoadSystemTiles
+   /+ &portal as ApiObject, +/
+   /+ &lp as PTNUI:Model:LandingPage +/
+end-method;
+
+method SaveUserTiles
+   /+ &portal as ApiObject, +/
+   /+ &lp as PTNUI:Model:LandingPage +/
+end-method;
+
+method InitializeModels
+   /+ &lpSys as PTNUI:Model:LandingPage, +/
+   /+ &lpUser as PTNUI:Model:LandingPage +/
+   /+ Extends/implements PTNUI:Registry:NUIRegistry.InitializeModels +/
+   
+   Local integer &i, &firstLPSeqNo;
+   Local string &firstLPLabel, &firstLPID;
+   Local array of PTNUI:Model:LandingPageTab &lptList = GetLandingPageTabListForPortal(%Portal);
+   Local PTNUI:Model:LandingPageTab &lpt;
+   
+   &firstLPSeqNo = 10000;
+   &firstLPLabel = "";
+   &firstLPID = "";
+   
+   For &i = 1 To &lptList.Len
+      &lpt = &lptList [&i];
+      If (&lpt.IsSysTab) Then
+         &lpSys.AddTab(&lpt.clone());
+      End-If;
+      If (&lpt.HasUserData) Then
+         &lpUser.AddTab(&lpt.clone());
+         If (&firstLPSeqNo > &lpt.SeqNum) Or
+               ((&firstLPSeqNo = &lpt.SeqNum) And
+                  (&firstLPLabel > &lpt.Label)) Then
+            &firstLPSeqNo = &lpt.SeqNum;
+            &firstLPLabel = &lpt.Label;
+            &firstLPID = &lpt.ID;
+         End-If;
+      End-If;
+   End-For;
+end-method;
+

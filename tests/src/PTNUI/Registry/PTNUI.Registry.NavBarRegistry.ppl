@@ -1,0 +1,47 @@
+import PTNUI:Model:LandingPageTab;
+import PTNUI:Model:Tile;
+import PTNUI:Registry:NUIRegistry;
+
+class NavBarRegistry extends PTNUI:Registry:NUIRegistry
+   method LoadUserTiles(&portal As ApiObject, &lpt As PTNUI:Model:LandingPageTab);
+   method LoadSystemTiles(&portal As ApiObject, &lpt As PTNUI:Model:LandingPageTab);
+   method SaveUserTiles(&portal As ApiObject, &lpt As PTNUI:Model:LandingPageTab);
+   
+   property string Name get;
+end-class;
+
+get Name
+   /+ Returns String +/
+   Return "NAVBAR";
+end-get;
+
+method LoadUserTiles
+   /+ &portal as ApiObject, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   Local ApiObject &userTab = &portal.LandingPage.UserTabs.ItemByName(%This.Name);
+   Local boolean &activeTabFound = False;
+   If &userTab <> Null Then
+      &activeTabFound = True;
+      %This.LoadUserTab(&portal, &lpt, &userTab);
+   Else
+      Return;
+   End-If;
+end-method;
+
+method LoadSystemTiles
+   /+ &portal as ApiObject, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   Local ApiObject &ltd = &portal.LandingTabDefinitions.ItemByName(%This.Name);
+   %This.LoadSystemTab(&portal, &lpt, &ltd);
+end-method;
+
+method SaveUserTiles
+   /+ &portal as ApiObject, +/
+   /+ &lpt as PTNUI:Model:LandingPageTab +/
+   %This.SaveUserTab(&portal, &lpt);
+   
+   If Not (&portal.LandingPage.save()) Then
+      MessageBox(0, "", 95, 10011, "Error saving landing page");
+   End-If;
+end-method;
+

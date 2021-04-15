@@ -1,0 +1,316 @@
+import PTPP_PORTAL:UTILITY:Collection;
+import PTPP_COLLECTIONS:*;
+
+import PTNUI:NavBarContentArea:NBContent;
+import PTNUI:NavBarContentArea:NBContentCollection;
+
+
+
+class NavigationCollection extends PTNUI:NavBarContentArea:NBContentCollection
+   property string PortalName readonly;
+   property string NavCollName readonly;
+   
+   property string FolderName readonly;
+   property string FolderLabel readonly;
+   property string ParentFolderName readonly;
+   property string ParentFolderLabel readonly;
+   
+   
+   method NavigationCollection(&pPortalName As string, &pCollName As string, &pFolderName As string);
+   method GetBackURL() Returns string;
+   method GetRootURL() Returns string;
+   method RowClicked(&pContent As PTNUI:NavBarContentArea:NBContent);
+   
+   
+protected
+   
+   property boolean IsStandalone;
+   
+   property PTPP_COLLECTIONS:Folder ParentFolder;
+   
+   
+   method getFolderUrl(&pFolderName As string) Returns string;
+   method getSubfolder(&pParentFolder As PTPP_COLLECTIONS:Folder, &pFolders As PTPP_COLLECTIONS:Folders, &pFolderName As string) Returns PTPP_COLLECTIONS:Folder;
+   
+   
+private
+   
+   Constant &cstQUERYPARAMETER_SCNAME = "scname";
+   Constant &cstQUERYPARAMETER_CURRENTFOLDER = "FLDR";
+   
+   
+end-class;
+
+
+
+Declare Function PortalOpen PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function UnEscapeHTML PeopleCode FUNCLIB_PORTAL.PORTAL_GEN_FUNC FieldFormula;
+Declare Function SetContentArea PeopleCode PTNUI_DOCK_REC.PTNUI_NB_ACTION FieldFormula;
+
+
+
+Component PTNUI:NavBarContentArea:NBContentCollection &ptnui_CurContentColl;
+
+
+
+method NavigationCollection
+   /+ &pPortalName as String, +/
+   /+ &pCollName as String, +/
+   /+ &pFolderName as String +/;
+   
+   
+   Local boolean &isAccessibilityMode = (GetUserOption("PPTL", "ACCESS") <> "N");
+   Local string &url, &label;
+   
+   Local ApiObject &portalReg;
+   
+   Local PTPP_COLLECTIONS:NavigationCollection &thisNavColl;
+   Local PTPP_COLLECTIONS:Folders &rootFolders;
+   Local PTPP_COLLECTIONS:Folder &thisFolder;
+   Local PTPP_COLLECTIONS:Shortcuts &rootShortcuts;
+   Local PTPP_COLLECTIONS:Shortcut &thisShortcut;
+   
+   Local PTNUI:NavBarContentArea:NBContent &nbc;
+   
+   %Super = create PTNUI:NavBarContentArea:NBContentCollection();
+   
+   
+   &IsStandalone = (Lower(%Request.GetParameter("sa")) = "y");
+   
+   If (All(&pPortalName)) Then
+      &PortalName = &pPortalName;
+   Else
+      &PortalName = %Portal;
+   End-If;
+   
+   If (All(&pCollName)) Then
+      &NavCollName = &pCollName;
+   Else
+      &NavCollName = "PORTAL_ROOT_OBJECT";
+   End-If;
+   
+   If (All(&pFolderName)) Then
+      &FolderName = &pFolderName;
+   Else
+      &FolderName = %This.NavCollName;
+   End-If;
+   
+   &FolderLabel = "";
+   
+   &ParentFolder = Null;
+   &ParentFolderName = "";
+   &ParentFolderLabel = "";
+   
+   
+   /* Get the Collection */
+   try
+      &thisNavColl = create PTPP_COLLECTIONS:NavigationCollection(%This.PortalName, %This.NavCollName);
+      
+   catch Exception &ex1
+      /* Ignore any error */
+   end-try;
+   
+   
+   /* Generate the list */
+   If ((&thisNavColl <> Null) And
+         &thisNavColl.Authorized And
+         &thisNavColl.IsValid) Then
+      
+      &FolderLabel = &thisNavColl.Label;
+      &ParentFolderName = %This.NavCollName;
+      &ParentFolderLabel = &FolderLabel;
+      
+      &rootFolders = &thisNavColl.Folders;
+      &rootShortcuts = &thisNavColl.Shortcuts;
+      
+      /* Go to the specified sub folder */
+      If (%This.FolderName <> %This.NavCollName) Then
+         &thisFolder = %This.getSubfolder( Null, &rootFolders, %This.FolderName);
+         If (All(&thisFolder)) Then
+            &FolderLabel = &thisFolder.Label;
+            &rootFolders = &thisFolder.Folders;
+            &rootShortcuts = &thisFolder.Shortcuts;
+            If (%This.ParentFolder <> Null) Then
+               &ParentFolderName = %This.ParentFolder.Name;
+               &ParentFolderLabel = %This.ParentFolder.Label;
+            End-If;
+         End-If;
+      End-If;
+      
+      
+      /* folders */
+      If (&rootFolders <> Null) Then
+         
+         &thisFolder = &rootFolders.First();
+         While (&thisFolder <> Null)
+            
+            /* Create the content */
+            If ( Not &thisFolder.IsRemote) Then
+               
+               &url = %This.getFolderUrl(&thisFolder.Name);
+               
+               &label = UnEscapeHTML(&thisFolder.Label);
+               If (&isAccessibilityMode) Then
+                  &label = &label | " " | MsgGetText(95, 9101, "folder");
+               End-If;
+               
+               &nbc = create PTNUI:NavBarContentArea:NBContent(&thisFolder.Name, &label, &url);
+               &nbc.ariaAttributes = "role='menuitem' aria-haspopup='true'";
+               &nbc.style = "fldr";
+               %This.InsertItem(&nbc);
+               
+            End-If;
+            
+            /* Next folder */
+            &thisFolder = &rootFolders.Next();
+            
+         End-While;
+         
+      End-If;
+      
+      
+      /* steps */
+      If (&rootShortcuts <> Null) Then
+         
+         &thisShortcut = &rootShortcuts.First();
+         While (&thisShortcut <> Null)
+            
+            /* Create the content */
+            If (&thisShortcut.IsNewWindow) Then
+               &url = "javascript:LaunchURL(null, '" | EncodeURL(Substitute(&thisShortcut.AbsolutePortalURLnewWin, "%25", "%")) | "', 1);";
+            Else
+               &url = "javascript:PTNavBar.OpenInWindow('" | EncodeURL(Substitute(&thisShortcut.AbsolutePortalURL, "%25", "%")) | "','" | EscapeJavascriptString(&thisShortcut.Name) | "');";
+            End-If;
+            
+            &label = UnEscapeHTML(&thisShortcut.Label);
+            
+            &nbc = create PTNUI:NavBarContentArea:NBContent(&thisShortcut.Name, &label, &url);
+            &nbc.ariaAttributes = "role='menuitem'";
+            %This.InsertItem(&nbc);
+            
+            /* Next shortcut */
+            &thisShortcut = &rootShortcuts.Next();
+            
+         End-While;
+         
+      End-If;
+      
+   Else
+      Error MsgGetText(219, 1051, "Message Not Found - Invalid Nav Coll");
+   End-If;
+   
+end-method;
+
+
+
+method GetBackURL
+   /+ Returns String +/
+   
+   Return %This.getFolderUrl(%This.ParentFolderName);
+   
+end-method;
+
+
+
+method GetRootURL
+   /+ Returns String +/
+   
+   Return %This.getFolderUrl("");
+   
+end-method;
+
+
+
+method RowClicked
+   /+ &pContent as PTNUI:NavBarContentArea:NBContent +/
+   /+ Extends/implements PTNUI:NavBarContentArea:NBContentCollection.RowClicked +/
+   
+   Local string &val = &pContent.getUrl();
+   If (Find("http", &val) <> 1) Then
+      Local array of string &vals = Split(&val, "|");
+      If (&vals.Len <> 2) Then
+         Error (&val);
+      Else
+         &ptnui_CurContentColl = create PTNUI:NavBarContentArea:Content:NavigationCollection(%This.PortalName, %This.NavCollName, &vals [1]);
+         Local ApiObject &portal = PortalOpen();
+         SetContentArea(&portal, &ptnui_CurContentColl);
+         &portal.close();
+      End-If;
+   Else
+      ViewURL(&val);
+   End-If;
+   
+end-method;
+
+
+
+method getFolderUrl
+   /+ &pFolderName as String +/
+   /+ Returns String +/
+   
+   Local string &url, &market, &cacheId;
+   
+   &market = %Market;
+   If (None(&market)) Then
+      &market = "GBL";
+   End-If;
+   
+   &url = GenerateComponentContentURL(%This.PortalName, %Node, MenuName.NUI_FRAMEWORK, &market, Component.PTNUI_NAVCOLL_COMP, "", "");
+   
+   If (Find("?", &url) > 0) Then
+      &url = &url | "&";
+   Else
+      &url = &url | "?";
+   End-If;
+   
+   &url = &url | &cstQUERYPARAMETER_SCNAME | "=" | EncodeURLForQueryString(%This.NavCollName);
+   
+   If (All(&pFolderName)) Then
+      &url = &url | "&" | &cstQUERYPARAMETER_CURRENTFOLDER | "=" | EncodeURLForQueryString(&pFolderName);
+      &cacheId = &pFolderName;
+   Else
+      &cacheId = %This.NavCollName;
+   End-If;
+   
+   If (%This.IsStandalone) Then
+      &url = &url | "&sa=y&ICDoModeless=1&ICGrouplet=3"; /* Render as interactive grouplet */
+   Else
+      &url = "javascript:PTNavBar.OpenInContentArea('" | &url | "&ICDoModal=1&ICGrouplet=1','" | &cacheId | "');";
+   End-If;
+   
+   Return &url;
+   
+end-method;
+
+
+
+method getSubfolder
+   /+ &pParentFolder as PTPP_COLLECTIONS:Folder, +/
+   /+ &pFolders as PTPP_COLLECTIONS:Folders, +/
+   /+ &pFolderName as String +/
+   /+ Returns PTPP_COLLECTIONS:Folder +/
+   
+   Local PTPP_COLLECTIONS:Folder &thisFolder, &thisSubfolder;
+   
+   If (&pFolders <> Null) And
+         All(&pFolderName) Then
+      &thisFolder = &pFolders.First();
+      While (&thisFolder <> Null)
+         If (&thisFolder.Name = &pFolderName) Then
+            %This.ParentFolder = &pParentFolder;
+            Return &thisFolder;
+         End-If;
+         If (&thisFolder.Folders <> Null) Then
+            &thisSubfolder = %This.getSubfolder(&thisFolder, &thisFolder.Folders, &pFolderName);
+            If (&thisSubfolder <> Null) Then
+               Return &thisSubfolder;
+            End-If;
+         End-If;
+         &thisFolder = &pFolders.Next();
+      End-While;
+   End-If;
+   
+   Return Null;
+   
+end-method;
+

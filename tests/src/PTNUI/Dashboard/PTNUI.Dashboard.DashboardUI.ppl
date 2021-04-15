@@ -1,0 +1,41 @@
+import PTNUI:LP:LandingPageUI;
+import PTNUI:Model:LandingPage;
+
+class DashboardUI extends PTNUI:LP:LandingPageUI
+   method setHPBtn(&lp As PTNUI:Model:LandingPage);
+   method startPersonalization();
+   method finishPersonalization(&lp As PTNUI:Model:LandingPage);
+end-class;
+
+method setHPBtn
+   /+ &lp as PTNUI:Model:LandingPage +/
+   /+ Extends/implements PTNUI:LP:LandingPageUI.setHPBtn +/
+   %Super.setHPBtn(&lp);
+   PTNUI_LAND_WRK.GROUPBOX14.FreeFormStyleName = "psc_force-hidden";
+end-method;
+
+method startPersonalization
+   /+ Extends/implements PTNUI:LP:LandingPageUI.startPersonalization +/
+   %Super.startPersonalization();
+   If IsAGRequest() = False And
+         IsMDRequest() = False Then
+      PTLAYOUT.PAGETITLE_GROUPBOX.Label = MsgGetText(95, 10117, "Personalize Dashboard");
+      PTLAYOUT.PAGETITLE_GROUPBOX.FreeFormStyleName = "";
+      PT_WORK.PT_BUTTON_BACK.FreeFormStyleName = "psc_hidden";
+   End-If;
+   GetPage(Page.PT_LANDINGPAGE).FreeFormStyleName = "pt_homepage pt_apphomepage persmode";
+end-method;
+
+method finishPersonalization
+   /+ &lp as PTNUI:Model:LandingPage +/
+   /+ Extends/implements PTNUI:LP:LandingPageUI.finishPersonalization +/
+   %Super.finishPersonalization(&lp);
+   If IsAGRequest() = False And
+         IsMDRequest() = False Then
+      PTLAYOUT.PAGETITLE_GROUPBOX.Label = PTNUI_LAND_WRK.GROUPBOX14.Label;
+      PTLAYOUT.PAGETITLE_GROUPBOX.FreeFormStyleName = "";
+      PT_WORK.PT_BUTTON_BACK.FreeFormStyleName = "";
+   End-If;
+   GetPage(Page.PT_LANDINGPAGE).FreeFormStyleName = "pt_homepage pt_apphomepage";
+end-method;
+

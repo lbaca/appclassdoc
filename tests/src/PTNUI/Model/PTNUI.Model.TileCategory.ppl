@@ -1,0 +1,382 @@
+import PTNUI:Model:Tile;
+
+
+class TileCategory
+   method TileCategory(&pNodeName As string, &pPortalName As string, &pCategoryName As string);
+   
+   method SetPropertiesFromFRef(&pFref As ApiObject);
+   
+   method GetTiles() Returns array of PTNUI:Model:Tile;
+   method ResetTiles();
+   
+   method toXML(&pXmlNode As XmlNode);
+   method fromXML(&pXmlNode As XmlNode);
+   
+   method clone() Returns PTNUI:Model:TileCategory;
+   method equals(&pTileCategory As PTNUI:Model:TileCategory) Returns boolean;
+   
+   method debug();
+   method debugString() Returns string;
+   
+   property string ID get;
+   property string RemoteID get;
+   
+   property string NodeName;
+   property string PortalName;
+   property string TileCategoryName;
+   property string Label;
+   property string Description;
+   
+   property string OwnerId;
+   property string Product;
+   property number SeqNum;
+   property string ValidFrom;
+   property string ValidTo;
+   
+   property boolean IsRemote;
+   property string RemoteNodeName;
+   property string RemotePortalName;
+   property string RemoteCRefName;
+   property string NetworkNodeName;
+   
+   
+private
+   Constant &cstXML_ELEMENT_TILE = "Tile";
+   
+   Constant &cstXML_ATTRIBUTE_NODE_NAME = "nodeName";
+   Constant &cstXML_ATTRIBUTE_PORTAL_NAME = "portalName";
+   Constant &cstXML_ATTRIBUTE_TILE_CATEGORY_NAME = "tileCategoryName";
+   Constant &cstXML_ATTRIBUTE_LABEL = "label";
+   Constant &cstXML_ATTRIBUTE_DESCRIPTION = "description";
+   
+   Constant &cstXML_ATTRIBUTE_OWNER_ID = "ownerId";
+   Constant &cstXML_ATTRIBUTE_PRODUCT = "product";
+   Constant &cstXML_ATTRIBUTE_SEQ_NUM = "seqNum";
+   Constant &cstXML_ATTRIBUTE_VALID_FROM = "validFrom";
+   Constant &cstXML_ATTRIBUTE_VALID_TO = "validTo";
+   
+   Constant &cstXML_ATTRIBUTE_IS_REMOTE = "isRemote";
+   Constant &cstXML_ATTRIBUTE_REMOTE_NODE_NAME = "remoteNodeName";
+   Constant &cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME = "remotePortalName";
+   Constant &cstXML_ATTRIBUTE_REMOTE_CREF_NAME = "remoteCrefName";
+   Constant &cstXML_ATTRIBUTE_NETWORK_NODE_NAME = "networkNodeName";
+   
+   Constant &cstCREF_ATTRIBUTE_LOCATION = "LOCATION";
+   Constant &cstCREF_ATTRIBUTE_NODE = "NODE";
+   Constant &cstCREF_ATTRIBUTE_PORTAL = "PORTAL";
+   Constant &cstCREF_ATTRIBUTE_CREFID = "UNCATEGID";
+   Constant &cstCREF_ATTRIBUTE_USER_TILES = "USER_TILES";
+   
+   Constant &cstCREF_ATTRIBUTE_VALUE_REMOTE = "REMOTE";
+   
+   Constant &cstTRUE = "true";
+   Constant &cstFALSE = "false";
+   
+   
+   instance array of PTNUI:Model:Tile &tiles_inst;
+   
+   
+end-class;
+
+
+
+Declare Function IsRemotePIANode PeopleCode PTNUI_LAND_WRK.FUNCLIB_01 FieldFormula;
+
+Declare Function getCRefAttribute PeopleCode PTAL_DASHBD_WRK.FUNCLIB FieldFormula;
+
+
+
+method TileCategory
+   /+ &pNodeName as String, +/
+   /+ &pPortalName as String, +/
+   /+ &pCategoryName as String +/
+   
+   &NodeName = &pNodeName;
+   &PortalName = &pPortalName;
+   &TileCategoryName = &pCategoryName;
+   
+   &Label = "";
+   &Description = "";
+   
+   &OwnerId = "";
+   &Product = "";
+   &SeqNum = 9999;
+   &ValidFrom = "";
+   &ValidTo = "";
+   
+   &IsRemote = False;
+   &RemoteNodeName = "";
+   &RemotePortalName = "";
+   &RemoteCRefName = "";
+   &NetworkNodeName = %LocalNode;
+   
+   &tiles_inst = Null;
+   
+end-method;
+
+method SetPropertiesFromFRef
+   /+ &pFref as ApiObject +/
+   
+   Local string &location, &remodeNode, &remotePortal, &remoteCRef;
+   
+   If &pFref = Null Then
+      Return;
+   End-If;
+   
+   &Label = &pFref.Label;
+   &OwnerId = &pFref.OwnerId;
+   &Product = &pFref.Product;
+   &SeqNum = &pFref.SequenceNumber;
+   &ValidFrom = &pFref.ValidFrom;
+   &ValidTo = &pFref.ValidTo;
+   
+   &IsRemote = False;
+   &RemoteNodeName = "";
+   &RemotePortalName = "";
+   &RemoteCRefName = "";
+   
+   &location = getCRefAttribute(&pFref, &cstCREF_ATTRIBUTE_LOCATION);
+   
+   If (&location = &cstCREF_ATTRIBUTE_VALUE_REMOTE) Then
+      
+      &remodeNode = getCRefAttribute(&pFref, &cstCREF_ATTRIBUTE_NODE);
+      &remotePortal = getCRefAttribute(&pFref, &cstCREF_ATTRIBUTE_PORTAL);
+      &remoteCRef = getCRefAttribute(&pFref, &cstCREF_ATTRIBUTE_CREFID);
+      
+      If All(&remodeNode, &remotePortal, &remoteCRef) And
+            IsRemotePIANode(&remodeNode) Then
+         /* Only set the flag when all uni-nav attributes are presented and the node is a remote node */
+         &IsRemote = True;
+         &RemoteNodeName = &remodeNode;
+         &RemotePortalName = &remotePortal;
+         &RemoteCRefName = &remoteCRef;
+      End-If;
+      
+   End-If;
+   
+end-method;
+
+
+
+method debug
+   Local string &outStr = %This.debugString();
+   AddOnLoadScript("alert(' " | &outStr | " ')");
+end-method;
+
+method debugString
+   /+ Returns String +/
+   Local string &outStr;
+   &outStr = &outStr | "NodeName     : " | EscapeJavascriptString(&NodeName) | "\n";
+   &outStr = &outStr | "PortalName   : " | EscapeJavascriptString(&PortalName) | "\n";
+   &outStr = &outStr | "CategoryName : " | EscapeJavascriptString(&TileCategoryName) | "\n";
+   &outStr = &outStr | "Label        : " | EscapeJavascriptString(&Label) | "\n";
+   &outStr = &outStr | "RemoteNodeName   : " | EscapeJavascriptString(&RemoteNodeName) | "\n";
+   &outStr = &outStr | "RemotePortalName : " | EscapeJavascriptString(&RemotePortalName) | "\n";
+   &outStr = &outStr | "RemoteCRefName   : " | EscapeJavascriptString(&RemoteCRefName) | "\n";
+   &outStr = &outStr | "NetworkNodeName  : " | EscapeJavascriptString(&NetworkNodeName) | "\n";
+   Return &outStr;
+end-method;
+
+
+
+method toXML
+   /+ &pXmlNode as XmlNode +/
+   
+   Local integer &i;
+   
+   Local XmlNode &tileNode;
+   
+   If All(&pXmlNode) Then
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_NODE_NAME, %This.NodeName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_PORTAL_NAME, %This.PortalName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_TILE_CATEGORY_NAME, %This.TileCategoryName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_LABEL, %This.Label);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_DESCRIPTION, %This.Description);
+      
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_OWNER_ID, %This.OwnerId);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_PRODUCT, %This.Product);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_SEQ_NUM, String(%This.SeqNum));
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_VALID_FROM, %This.ValidFrom);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_VALID_TO, %This.ValidTo);
+      
+      If %This.IsRemote Then
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOTE, &cstTRUE);
+      Else
+         &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_IS_REMOTE, &cstFALSE);
+      End-If;
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_NODE_NAME, %This.RemoteNodeName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME, %This.RemotePortalName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_REMOTE_CREF_NAME, %This.RemoteCRefName);
+      &pXmlNode.AddAttribute(&cstXML_ATTRIBUTE_NETWORK_NODE_NAME, %This.NetworkNodeName);
+      
+      /* Tiles */
+      If (&tiles_inst <> Null) Then
+         For &i = 1 To &tiles_inst.Len
+            &tileNode = &pXmlNode.AddElement(&cstXML_ELEMENT_TILE);
+            &tiles_inst [&i].toXML(&tileNode);
+         End-For;
+      End-If;
+      
+   End-If;
+   
+end-method;
+
+
+method fromXML
+   /+ &pXmlNode as XmlNode +/
+   
+   Local integer &i;
+   
+   Local array of XmlNode &tileNodeList;
+   
+   Local PTNUI:Model:Tile &t;
+   
+   If All(&pXmlNode) Then
+      
+      &NodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NODE_NAME);
+      &PortalName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PORTAL_NAME);
+      &TileCategoryName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_TILE_CATEGORY_NAME);
+      %This.Label = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_LABEL);
+      %This.Description = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_DESCRIPTION);
+      
+      %This.OwnerId = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_OWNER_ID);
+      %This.Product = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_PRODUCT);
+      %This.SeqNum = Value(&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_SEQ_NUM));
+      %This.ValidFrom = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_VALID_FROM);
+      %This.ValidTo = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_VALID_TO);
+      
+      %This.IsRemote = (&pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_IS_REMOTE) = &cstTRUE);
+      %This.RemoteNodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_NODE_NAME);
+      %This.RemotePortalName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_PORTAL_NAME);
+      %This.RemoteCRefName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_REMOTE_CREF_NAME);
+      %This.NetworkNodeName = &pXmlNode.GetAttributeValue(&cstXML_ATTRIBUTE_NETWORK_NODE_NAME);
+      
+      /* Tiles */
+      &tiles_inst = CreateArrayRept(&t, 0);
+      &tileNodeList = &pXmlNode.GetElementsByTagName(&cstXML_ELEMENT_TILE);
+      For &i = 1 To &tileNodeList.Len
+         &t = create PTNUI:Model:Tile("", "", "", "");
+         &t.fromXML(&tileNodeList [&i]);
+         &tiles_inst.Push(&t);
+      End-For;
+      
+   End-If;
+   
+end-method;
+
+
+/**
+  * Clone the object
+  *
+  * @return TileCategory object
+  *
+  */
+method clone
+   /+ Returns PTNUI:Model:TileCategory +/
+   
+   Local PTNUI:Model:TileCategory &newObj;
+   
+   Local integer &i;
+   
+   Local PTNUI:Model:Tile &t;
+   Local array of PTNUI:Model:Tile &newTileList;
+   
+   
+   &newObj = create PTNUI:Model:TileCategory(%This.NodeName, %This.PortalName, %This.TileCategoryName);
+   
+   &newObj.Label = %This.Label;
+   &newObj.Description = %This.Description;
+   
+   &newObj.OwnerId = %This.OwnerId;
+   &newObj.Product = %This.Product;
+   &newObj.SeqNum = %This.SeqNum;
+   &newObj.ValidFrom = %This.ValidFrom;
+   &newObj.ValidTo = %This.ValidTo;
+   
+   &newObj.IsRemote = %This.IsRemote;
+   &newObj.RemoteNodeName = %This.RemoteNodeName;
+   &newObj.RemotePortalName = %This.RemotePortalName;
+   &newObj.RemoteCRefName = %This.RemoteCRefName;
+   &newObj.NetworkNodeName = %This.NetworkNodeName;
+   
+   
+   /* Clone Tiles */
+   If (&tiles_inst <> Null) Then
+      &newTileList = &newObj.GetTiles();
+      For &i = 1 To &tiles_inst.Len
+         &t = &tiles_inst [&i];
+         &newTileList.Push(&t.clone());
+      End-For;
+   End-If;
+   
+   Return &newObj;
+   
+end-method;
+
+/**
+  * Evaluates whether two tile categories pointing to the same target.
+  * Note:  for local categories, ID is used for comparing.  fro remote categories, the remote ID is used.
+  *
+  * @param pTileCategory     the object to compare to.
+  *
+  * @return boolean - true if find match, otherwise false
+  *
+  */
+method equals
+   /+ &pTileCategory as PTNUI:Model:TileCategory +/
+   /+ Returns Boolean +/
+   
+   Local string &id1, &id2;
+   
+   If %This.IsRemote Then
+      &id1 = %This.RemoteID;
+   Else
+      &id1 = %This.ID;
+   End-If;
+   
+   If &pTileCategory.IsRemote Then
+      &id2 = &pTileCategory.RemoteID;
+   Else
+      &id2 = &pTileCategory.ID;
+   End-If;
+   
+   Return (&id1 = &id2);
+   
+end-method;
+
+get ID
+   /+ Returns String +/
+   Return &NodeName | "." | &PortalName | "." | &TileCategoryName;
+end-get;
+
+
+get RemoteID
+   /+ Returns String +/
+   If %This.IsRemote Then
+      Return &RemoteNodeName | "." | &RemotePortalName | "." | &RemoteCRefName;
+   Else
+      Return "";
+   End-If;
+end-get;
+
+
+method GetTiles
+   /+ Returns Array of PTNUI:Model:Tile +/
+   
+   Local PTNUI:Model:Tile &tile;
+   
+   If (&tiles_inst = Null) Then
+      &tiles_inst = CreateArrayRept(&tile, 0);
+   End-If;
+   
+   Return &tiles_inst;
+   
+end-method;
+
+method ResetTiles
+   
+   &tiles_inst = Null;
+   
+end-method;
+
