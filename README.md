@@ -131,16 +131,16 @@ pip install appclassdoc
 
 ### Command Line Interface
 
-The AppClassDoc CLI provides help text:
+The package installs a console script called `appclassdoc` to serve as a CLI:
 
 ```bash
-python -m appclassdoc -h
+appclassdoc -h
 ```
 
 The usage information is as follows:
 
 ```
-usage: appclassdoc.py [-h] [-v] [-o OUTPUTDIR] [-p] [-n] file_or_dir [file_or_dir ...]
+usage: appclassdoc [-h] [-v] [-o OUTPUTDIR] [-p] [-n] file_or_dir [file_or_dir ...]
 
 Generate API documentation for PeopleSoft Application Classes.
 
@@ -160,7 +160,7 @@ The `-v`/`--verbosity` switch can be specified up to three times, to increase th
 
 If the `-p`/`--private` switch is not specified, private class members are not printed to the HTML.
 
-When the API documentation site is first generated, a number of [resource files](https://github.com/lbaca/appclassdoc/resources) are copied into the output directory, such as CSS files ad fonts. These can be customized, in which case subsequent executions of the script by means of the CLI will want to include the `-n`/`--nodelete` switch to maintain the existing versions instead of replacing them.
+When the API documentation site is first generated, a number of [resource files](https://github.com/lbaca/appclassdoc/resources) are copied into the output directory, such as CSS files and fonts. These can be customized, in which case subsequent executions of the script by means of the CLI will want to include the `-n`/`--nodelete` switch to maintain the existing versions instead of replacing them.
 
 ### Package Invocation
 

@@ -1367,7 +1367,8 @@ def generate_appclassdoc(outputdir, include_private, do_deletes, files,
         _logger.warning('No classes found')
 
 
-if __name__ == '__main__':
+def appclassdoc_cli():
+    """The CLI for AppClassDoc."""
     assert sys.version_info >= (3, 6), \
            'Python 3.6+ is required to run this script'
     parser = argparse.ArgumentParser(

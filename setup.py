@@ -11,7 +11,7 @@ with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='appclassdoc',
-    version='1.0.0',
+    version='1.0.1',
     description=('A package to create a Javadoc-like API documentation site '
                  'for PeopleSoft Application Classes'),
     long_description=long_description,
